@@ -23,6 +23,7 @@ def generate_user_data():
         <p>Availability Zone: $AVAILABILITY_ZONE</p>
         </body>
         </html>
+        EOF
         """
     return user_data
 
@@ -49,7 +50,7 @@ def create_instance(instance_name, ami_id, key_name, security_group, instance_ty
             },
         ]
     )
-
+  
     instance = created_instances[0]
     print("Waiting for the instance to enter running state...")
     instance.wait_until_running()  # Wait for the instance to be ready
@@ -59,7 +60,7 @@ def create_instance(instance_name, ami_id, key_name, security_group, instance_ty
 
 if __name__ == '__main__':
     ami_id = "ami-0277155c3f0ab2930"
-    key_name = "DesktopDevOps2023"
+    key_name = "DesktopDevOps2023" 
     security_group = "sg-00e70907b799fcdc6"
     instance_name = "Web Server"
     create_instance(instance_name, ami_id, key_name, security_group)
