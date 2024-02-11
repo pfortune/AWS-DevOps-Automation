@@ -9,9 +9,10 @@ def generate_user_data():
         systemctl start httpd.service
         systemctl enable httpd.service
         # Fetch instance metadata
-        INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
-        INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
-        AVAILABILITY_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
+        TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+        INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+        INSTANCE_TYPE=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
+        AVAILABILITY_ZONE=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone)
         # Create a custom index.html
         cat <<EOF > /var/www/html/index.html
         <html>
@@ -22,7 +23,6 @@ def generate_user_data():
         <p>Availability Zone: $AVAILABILITY_ZONE</p>
         </body>
         </html>
-        EOF
         """
     return user_data
 
