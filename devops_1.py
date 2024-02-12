@@ -28,14 +28,24 @@ def generate_user_data():
     """
     return user_data
 
-def create_instance(instance_name, ami_id, key_name, security_group = None, instance_type="t2.nano"):
+def create_instance(instance_name, ami_id, key_name, security_group=None, instance_type="t2.nano"):
     user_data = generate_user_data()
 
     if not security_group:
-        security_group_id = create_security_group()
-        if security_group_id is None:
-            print("Failed to create security group, exiting.")
+        vpc_id = get_default_vpc_id()
+        if not vpc_id:
+            print("Unable to retrieve a valid VPC ID, exiting.")
             return
+
+        # Check for an existing security group that matches the criteria
+        security_group_id = find_matching_sg(vpc_id)
+        if security_group_id:
+            print(f"Found matching security group {security_group_id}, using it.")
+        else:
+            security_group_id = create_security_group(vpc_id=vpc_id)  # Your existing function to create a SG
+            if security_group_id is None:
+                print("Failed to create security group, exiting.")
+                return
     else:
         security_group_id = security_group
 
@@ -85,6 +95,16 @@ def create_security_group(group_name="NewLaunchWizard", description="Allows acce
     print("Inbound rules added for HTTP and SSH.")
 
     return sg.id
+
+def find_matching_sg(vpc_id):
+    response = ec2_client.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
+    for sg in response['SecurityGroups']:
+        http_rules = [rule for rule in sg['IpPermissions'] if rule.get('FromPort') == 80 and rule.get('ToPort') == 80 and '0.0.0.0/0' in [ip['CidrIp'] for ip in rule.get('IpRanges', [])]]
+        ssh_rules = [rule for rule in sg['IpPermissions'] if rule.get('FromPort') == 22 and rule.get('ToPort') == 22 and '0.0.0.0/0' in [ip['CidrIp'] for ip in rule.get('IpRanges', [])]]
+
+        if http_rules and ssh_rules:
+            return sg['GroupId']
+    return None
 
 def get_default_vpc_id():
     response = ec2_client.describe_vpcs(
