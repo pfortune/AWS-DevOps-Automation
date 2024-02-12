@@ -1,4 +1,5 @@
 import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
 
 ec2 = boto3.resource('ec2')
 ec2_client = boto3.client('ec2')
@@ -31,50 +32,55 @@ def generate_user_data():
 def create_instance(instance_name, ami_id, key_name, security_group=None, instance_type="t2.nano"):
     user_data = generate_user_data()
 
-    if not security_group:
-        vpc_id = get_default_vpc_id()
-        if not vpc_id:
-            print("Unable to retrieve a valid VPC ID, exiting.")
-            return
-
-        # Check for an existing security group that matches the criteria
-        security_group_id = find_matching_sg(vpc_id)
-        if security_group_id:
-            print(f"Found matching security group {security_group_id}, using it.")
-        else:
-            security_group_id = create_security_group(vpc_id=vpc_id)  # Your existing function to create a SG
-            if security_group_id is None:
-                print("Failed to create security group, exiting.")
+    try:
+        if not security_group:
+            vpc_id = get_default_vpc_id()
+            if not vpc_id:
+                print("Unable to retrieve a valid VPC ID, exiting.")
                 return
-    else:
-        security_group_id = security_group
 
-    created_instances = ec2.create_instances(
-        ImageId=ami_id,
-        InstanceType=instance_type,
-        MinCount=1,
-        MaxCount=1,
-        KeyName=key_name,
-        SecurityGroupIds=[security_group_id],
-        UserData=user_data,
-        TagSpecifications=[
-            {
-                'ResourceType': 'instance',
-                'Tags': [
-                    {
-                        'Key': 'Name',
-                        'Value': instance_name
-                    },
-                ]
-            },
-        ]
-    )
-  
-    instance = created_instances[0]
-    print("Waiting for the instance to enter running state...")
-    instance.wait_until_running()  # Wait for the instance to be ready
-    instance.reload()
-    print(f"Instance running, Public IP: {instance.public_ip_address}")
+            # Check for an existing security group that matches the criteria
+            security_group_id = find_matching_sg(vpc_id)
+            if security_group_id:
+                print(f"Found matching security group {security_group_id}, using it.")
+            else:
+                security_group_id = create_security_group(vpc_id=vpc_id)  # Your existing function to create a SG
+                if security_group_id is None:
+                    print("Failed to create security group, exiting.")
+                    return
+        else:
+            security_group_id = security_group
+
+        created_instances = ec2.create_instances(
+            ImageId=ami_id,
+            InstanceType=instance_type,
+            MinCount=1,
+            MaxCount=1,
+            KeyName=key_name,
+            SecurityGroupIds=[security_group_id],
+            UserData=user_data,
+            TagSpecifications=[
+                {
+                    'ResourceType': 'instance',
+                    'Tags': [
+                        {
+                            'Key': 'Name',
+                            'Value': instance_name
+                        },
+                    ]
+                },
+            ]
+        )
+
+        instance = created_instances[0]
+        print("Waiting for the instance to enter running state...")
+        instance.wait_until_running()  # Wait for the instance to be ready
+        instance.reload()
+        print(f"Instance running, Public IP: {instance.public_ip_address}")
+    except ClientError as e:
+        print(f"An error occurred creating instance: {e}")
+    except NoCredentialsError as e:
+        print("Credentials not available: ", e)
 
 def create_security_group(group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
     # Get the default VPC ID
