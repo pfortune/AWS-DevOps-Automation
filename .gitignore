@@ -132,6 +132,8 @@ venv.bak/
 .spyderproject
 .spyproject
 
+logo.png
+terminate.py
 # Rope project settings
 .ropeproject
 

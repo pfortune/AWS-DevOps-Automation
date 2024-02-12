@@ -1,5 +1,6 @@
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+import requests
 
 ec2 = boto3.resource('ec2')
 ec2_client = boto3.client('ec2')
@@ -29,7 +30,7 @@ def generate_user_data():
     """
     return user_data
 
-def create_instance(instance_name, ami_id, key_name, security_group=None, instance_type="t2.nano"):
+def create_instance(ami_id, key_name, instance_name="Web Server", security_group=None, instance_type="t2.nano"):
     user_data = generate_user_data()
 
     try:
@@ -79,8 +80,6 @@ def create_instance(instance_name, ami_id, key_name, security_group=None, instan
         print(f"Instance running, Public IP: {instance.public_ip_address}")
     except ClientError as e:
         print(f"An error occurred creating instance: {e}")
-    except NoCredentialsError as e:
-        print("Credentials not available: ", e)
 
 def create_security_group(group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
     # Get the default VPC ID
@@ -125,8 +124,18 @@ def get_default_vpc_id():
         print("No default VPC found.")
         return None
 
+def get_image():
+    try:
+        response = requests.get("http://devops.witdemo.net/logo.jpg")
+        if response.status_code == 200:
+            with open("logo.png", "wb") as f:
+                f.write(response.content)
+            print("Image downloaded successfully.")
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred downloading the image: {e}")
+
+
 if __name__ == '__main__':
     ami_id = "ami-0277155c3f0ab2930"
-    key_name = "DesktopDevOps2023" 
-    instance_name = "Web Server"
-    create_instance(instance_name, ami_id, key_name)
+    key_name = "DesktopDevOps2023"
+    create_instance(ami_id, key_name)
