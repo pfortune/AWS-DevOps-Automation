@@ -1,3 +1,4 @@
+import logging
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 import requests
@@ -5,8 +6,9 @@ import random
 import string
 import webbrowser
 
-ec2 = boto3.resource('ec2')
-ec2_client = boto3.client('ec2')
+ec2 = boto3.resource('ec2', region_name='us-east-1')
+s3 = boto3.client('s3')
+ec2_client = boto3.client('ec2', region_name='us-east-1')
 
 def generate_user_data():
     user_data = """#!/bin/bash
@@ -66,7 +68,10 @@ def create_instance(ami_id, key_name, instance_name="Web Server", security_group
         instance.reload()
         print(f"Instance running, Public IP: {instance.public_ip_address}")
     except ClientError as e:
-        print(f"An error occurred creating instance: {e}")
+        logging.error(e)
+        print(f"An error occured creating instance: {e}")
+    except NoCredentialsError as e:
+        print(f"An error occured with your credentials: {e}")
 
 def get_security_group(security_group=None):
     # If a security group is provided, return it
@@ -159,8 +164,25 @@ def get_image():
     except requests.exceptions.RequestException as e:
         print(f"An error occurred downloading the image: {e}")
 
+def get_buckets():
+    pass
+
+def create_new_bucket(bucket_name, region=None):
+    try:
+        if region is None:
+            s3.create_bucket(Bucket=bucket_name)
+        else:
+            location = {'LocationConstraint': region}
+            s3.create_bucket(Bucket=bucket_name,
+                                    CreateBucketConfiguration=location)
+    except ClientError as e:
+        logging.error(e)
+        print(f"An error occured creating instance: {e}")
+    return True
+
 
 if __name__ == '__main__':
     ami_id = "ami-0277155c3f0ab2930"
     key_name = "DesktopDevOps2023"
-    create_instance(ami_id, key_name)
+    # create_instance(ami_id, key_name)
+    create_new_bucket()
