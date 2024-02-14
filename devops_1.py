@@ -7,7 +7,7 @@ import string
 import webbrowser
 
 ec2 = boto3.resource('ec2', region_name='us-east-1')
-s3 = boto3.client('s3')
+s3 = boto3.resource('s3')
 ec2_client = boto3.client('ec2', region_name='us-east-1')
 
 def generate_user_data():
@@ -168,21 +168,27 @@ def get_buckets():
     pass
 
 def create_new_bucket(bucket_name, region=None):
+    new_bucket_name = generate_bucket_name(bucket_name)
     try:
         if region is None:
-            s3.create_bucket(Bucket=bucket_name)
+            s3.create_bucket(Bucket=new_bucket_name)
         else:
             location = {'LocationConstraint': region}
-            s3.create_bucket(Bucket=bucket_name,
+            s3.create_bucket(Bucket=new_bucket_name,
                                     CreateBucketConfiguration=location)
+        print(f"Bucket {new_bucket_name} created successfully.")
     except ClientError as e:
         logging.error(e)
         print(f"An error occured creating instance: {e}")
     return True
 
+def generate_bucket_name(name):
+    characters = string.ascii_lowercase + string.digits
+    random_characters = ('').join([random.choice(characters) for i in range(6)])
+    return f"{name}-{random_characters}"
 
 if __name__ == '__main__':
     ami_id = "ami-0277155c3f0ab2930"
     key_name = "DesktopDevOps2023"
     # create_instance(ami_id, key_name)
-    create_new_bucket()
+    create_new_bucket("peterf")
