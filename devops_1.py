@@ -92,11 +92,8 @@ def get_security_group(security_group=None):
 
     return security_group_id
 
-def create_security_group(group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
-    # Get the default VPC ID
-    vpc_id = get_default_vpc_id()
-    
-    # Check if the security group name already exists
+def create_security_group(vpc_id, group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
+     # Check if the security group name already exists
     group_name = generate_unique_sg_name(group_name, vpc_id)
     
     # Create the security group
