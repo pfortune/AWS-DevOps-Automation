@@ -1,6 +1,9 @@
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 import requests
+import random
+import string
+import webbrowser
 
 ec2 = boto3.resource('ec2')
 ec2_client = boto3.client('ec2')
@@ -65,26 +68,6 @@ def create_instance(ami_id, key_name, instance_name="Web Server", security_group
     except ClientError as e:
         print(f"An error occurred creating instance: {e}")
 
-def create_security_group(group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
-    # Get the default VPC ID
-    vpc_id = get_default_vpc_id()
-    # Create the security group
-    sg = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
-    print(f"Security Group Created: {sg.id}")
-
-    # Add inbound rules
-    sg.authorize_ingress(
-        IpPermissions=[
-            # HTTP access
-            {'FromPort': 80, 'ToPort': 80, 'IpProtocol': 'tcp', 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
-            # SSH access
-            {'FromPort': 22, 'ToPort': 22, 'IpProtocol': 'tcp', 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
-        ]
-    )
-    print("Inbound rules added for HTTP and SSH.")
-
-    return sg.id
-
 def get_security_group(security_group=None):
     # If a security group is provided, return it
     if security_group:
@@ -109,6 +92,30 @@ def get_security_group(security_group=None):
 
     return security_group_id
 
+def create_security_group(group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
+    # Get the default VPC ID
+    vpc_id = get_default_vpc_id()
+    
+    # Check if the security group name already exists
+    group_name = generate_unique_sg_name(group_name, vpc_id)
+    
+    # Create the security group
+    sg = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
+    print(f"Security Group Created: {sg.id}")
+
+    # Add inbound rules
+    sg.authorize_ingress(
+        IpPermissions=[
+            # HTTP access
+            {'FromPort': 80, 'ToPort': 80, 'IpProtocol': 'tcp', 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
+            # SSH access
+            {'FromPort': 22, 'ToPort': 22, 'IpProtocol': 'tcp', 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
+        ]
+    )
+    print("Inbound rules added for HTTP and SSH.")
+
+    return sg.id
+
 def find_matching_sg(vpc_id):
     response = ec2_client.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
     for sg in response['SecurityGroups']:
@@ -118,6 +125,19 @@ def find_matching_sg(vpc_id):
         if http_rules and ssh_rules:
             return sg['GroupId']
     return None
+
+# Function to generate a unique security group name
+def generate_unique_sg_name(base_name, vpc_id):
+    unique_name = base_name
+    attempt = 0
+    while True:
+        existing_sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}, {'Name': 'group-name', 'Values': [unique_name]}])
+        if not existing_sgs['SecurityGroups']:
+            # If no existing SG matches the unique_name, it's unique
+            break
+        attempt += 1
+        unique_name = f"{base_name}-{random.choice(string.ascii_lowercase)}{attempt}"
+    return unique_name
 
 def get_default_vpc_id():
     response = ec2_client.describe_vpcs(
