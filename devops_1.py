@@ -42,11 +42,12 @@ EOF
 """
     return user_data
 
-def create_instance(ami_id, key_name, instance_name="Web Server", security_group=None, instance_type="t2.nano"):
+def create_instance(key_name, instance_name="Web Server", security_group=None, ami_id=None, instance_type="t2.nano"):
     user_data = generate_user_data()
 
     try:
-        security_group_id = get_security_group(security_group)
+        security_group_id = security_group or get_security_group()
+        ami_id = ami_id or get_latest_amazon_linux_ami()
 
         created_instances = ec2.create_instances(
             ImageId=ami_id,
@@ -81,11 +82,7 @@ def create_instance(ami_id, key_name, instance_name="Web Server", security_group
     except NoCredentialsError as e:
         print(f"An error occured with your credentials: {e}")
 
-def get_security_group(security_group=None):
-    # If a security group is provided, return it
-    if security_group:
-        return security_group
-
+def get_security_group():
     # Get the default VPC ID
     vpc_id = get_default_vpc_id()
     if not vpc_id:
@@ -190,15 +187,47 @@ def create_new_bucket(bucket_name, region=None):
         print(f"An error occured creating instance: {e}")
     return True
 
+def get_latest_amazon_linux_ami():
+    ec2 = boto3.client('ec2', region_name='us-east-1')  # Feel free to change the region!
+
+    filters = [
+        {
+            'Name': 'name',
+            'Values': ['amzn2-ami-hvm-*-x86_64-gp2']
+        },
+        {
+            'Name': 'state',
+            'Values': ['available']
+        },
+        {
+            'Name': 'architecture',
+            'Values': ['x86_64']
+        }
+    ]
+
+    # Fetch the latest Amazon Linux AMI
+    amis = ec2.describe_images(Owners=['amazon'], Filters=filters)
+
+    # Sort by creation date
+    amis['Images'].sort(key=lambda x: x['CreationDate'], reverse=True)
+
+    if amis['Images']:
+        latest_ami = amis['Images'][0]
+        print(f"Latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
+        return latest_ami['ImageId']
+    else:
+        print("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
+
+
 def generate_bucket_name(name):
     characters = string.ascii_lowercase + string.digits
     random_characters = ('').join([random.choice(characters) for i in range(6)])
     return f"{name}-{random_characters}"
 
 if __name__ == '__main__':
-    ami_id = "ami-0277155c3f0ab2930"
     key_name = "DesktopDevOps2023"
-    instance_ip = create_instance(ami_id, key_name)
+
+    instance_ip = create_instance(key_name)
     print(f"Instance IP: {instance_ip}")
     print("Waiting for web server to be ready...")
     sleep(10)
@@ -214,4 +243,4 @@ if __name__ == '__main__':
             print("Web server not yet running, waiting 5 seconds...")
             sleep(5)
 
-    # create_new_bucket("peterf")
+    create_new_bucket("peterf")
