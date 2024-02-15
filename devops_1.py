@@ -188,8 +188,6 @@ def create_new_bucket(bucket_name, region=None):
     return True
 
 def get_latest_amazon_linux_ami():
-    ec2 = boto3.client('ec2', region_name='us-east-1')  # Feel free to change the region!
-
     filters = [
         {
             'Name': 'name',
@@ -206,7 +204,7 @@ def get_latest_amazon_linux_ami():
     ]
 
     # Fetch the latest Amazon Linux AMI
-    amis = ec2.describe_images(Owners=['amazon'], Filters=filters)
+    amis = ec2_client.describe_images(Owners=['amazon'], Filters=filters)
 
     # Sort by creation date
     amis['Images'].sort(key=lambda x: x['CreationDate'], reverse=True)
