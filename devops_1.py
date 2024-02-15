@@ -1,14 +1,21 @@
+# Standard Library Imports
 import logging
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
 import requests
 import random
 import string
+from time import sleep
+import typing
 import webbrowser
 
+# Third Party Imports
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
+
+# AWS Service Clients
 ec2 = boto3.resource('ec2', region_name='us-east-1')
 s3 = boto3.resource('s3')
 ec2_client = boto3.client('ec2', region_name='us-east-1')
+instance_ip: str = ""
 
 def generate_user_data():
     user_data = """#!/bin/bash
@@ -67,6 +74,7 @@ def create_instance(ami_id, key_name, instance_name="Web Server", security_group
         instance.wait_until_running()  # Wait for the instance to be ready
         instance.reload()
         print(f"Instance running, Public IP: {instance.public_ip_address}")
+        return instance.public_ip_address
     except ClientError as e:
         logging.error(e)
         print(f"An error occured creating instance: {e}")
@@ -129,7 +137,7 @@ def find_matching_sg(vpc_id):
     return None
 
 # Function to generate a unique security group name
-def generate_unique_sg_name(base_name, vpc_id):
+def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
     unique_name = base_name
     attempt = 0
     while True:
@@ -190,5 +198,20 @@ def generate_bucket_name(name):
 if __name__ == '__main__':
     ami_id = "ami-0277155c3f0ab2930"
     key_name = "DesktopDevOps2023"
-    # create_instance(ami_id, key_name)
-    create_new_bucket("peterf")
+    instance_ip = create_instance(ami_id, key_name)
+    print(f"Instance IP: {instance_ip}")
+    print("Waiting for web server to be ready...")
+    sleep(10)
+    while True:
+        try:
+            r = requests.get(f"http://{instance_ip}")
+            if r.status_code == 200:
+                print("Web server is up and running.")
+                print(f"Opening web browser to http://{instance_ip}")
+                webbrowser.open(f"http://{instance_ip}")
+                break
+        except requests.ConnectionError:
+            print("Web server not yet running, waiting 5 seconds...")
+            sleep(5)
+
+    # create_new_bucket("peterf")
