@@ -4,8 +4,8 @@ import requests
 import random
 import string
 from time import sleep
-import typing
 import webbrowser
+import configparser
 
 # Third Party Imports
 import boto3
@@ -15,7 +15,18 @@ from botocore.exceptions import ClientError, NoCredentialsError
 ec2 = boto3.resource('ec2', region_name='us-east-1')
 s3 = boto3.resource('s3')
 ec2_client = boto3.client('ec2', region_name='us-east-1')
-instance_ip: str = ""
+
+# Load configuration
+print("Loading configuration...")
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+key_name = config['AWS']['key_name'] or None
+ami_id = config['EC2']['ami_id'] or None
+instance_type = config['EC2']['instance_type'] or "t2.nano"
+security_group = config['EC2']['security_group'] or None
+image_url = config['S3']['image_url'] or None
+
 
 def generate_user_data():
     user_data = """#!/bin/bash
@@ -42,7 +53,7 @@ EOF
 """
     return user_data
 
-def create_instance(key_name, instance_name="Web Server", security_group=None, ami_id=None, instance_type="t2.nano"):
+def create_instance(key_name, instance_name, security_group, ami_id, instance_type):
     user_data = generate_user_data()
 
     try:
@@ -161,7 +172,7 @@ def get_default_vpc_id():
 
 def get_image():
     try:
-        response = requests.get("http://devops.witdemo.net/logo.jpg")
+        response = requests.get(image_url)
         if response.status_code == 200:
             with open("logo.png", "wb") as f:
                 f.write(response.content)
@@ -223,9 +234,7 @@ def generate_bucket_name(name):
     return f"{name}-{random_characters}"
 
 if __name__ == '__main__':
-    key_name = "DesktopDevOps2023"
-
-    instance_ip = create_instance(key_name)
+    instance_ip = create_instance()
     print(f"Instance IP: {instance_ip}")
     print("Waiting for web server to be ready...")
     sleep(10)
