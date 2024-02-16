@@ -29,6 +29,11 @@ image_url = config['S3']['image_url'] or None
 
 
 def generate_user_data():
+    """
+    Generates a user data script for EC2 instance initialization.
+    This script updates the system, installs and starts Apache HTTP Server,
+    and creates a custom index.html page with the instance's metadata.
+    """
     user_data = """#!/bin/bash
 yum update -y
 yum install -y httpd
@@ -54,6 +59,19 @@ EOF
     return user_data
 
 def create_instance(key_name, instance_name, security_group, ami_id, instance_type):
+    """
+    Creates an EC2 instance with specified parameters.
+    
+    Parameters:
+    - key_name: The name of the key pair for SSH access.
+    - instance_name: The name tag for the instance.
+    - security_group: The security group ID to assign to the instance.
+    - ami_id: The AMI ID for the instance's OS.
+    - instance_type: The type of instance to launch.
+    
+    Returns the public IP address of the created instance.
+    """
+    
     user_data = generate_user_data()
 
     try:
@@ -94,6 +112,12 @@ def create_instance(key_name, instance_name, security_group, ami_id, instance_ty
         print(f"An error occured with your credentials: {e}")
 
 def get_security_group():
+    """
+    Retrieves an existing security group that matches specified criteria or creates a new one.
+    
+    Returns the ID of the security group.
+    """
+
     # Get the default VPC ID
     vpc_id = get_default_vpc_id()
     if not vpc_id:
@@ -114,7 +138,18 @@ def get_security_group():
     return security_group_id
 
 def create_security_group(vpc_id, group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
-     # Check if the security group name already exists
+    """
+    Creates a new security group in the specified VPC.
+    
+    Parameters:
+    - vpc_id: The ID of the VPC where the security group will be created.
+    - group_name: The name of the security group.
+    - description: A description of the security group's purpose.
+    
+    Returns the ID of the created security group.
+    """
+    
+    # Check if the security group name already exists
     group_name = generate_unique_sg_name(group_name, vpc_id)
     
     # Create the security group
@@ -135,6 +170,15 @@ def create_security_group(vpc_id, group_name="NewLaunchWizard", description="All
     return sg.id
 
 def find_matching_sg(vpc_id):
+    """
+    Searches for an existing security group in the specified VPC that allows HTTP and SSH access.
+    
+    Parameters:
+    - vpc_id: The ID of the VPC to search within.
+    
+    Returns the ID of the matching security group, if found.
+    """
+
     response = ec2_client.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
     for sg in response['SecurityGroups']:
         http_rules = [rule for rule in sg['IpPermissions'] if rule.get('FromPort') == 80 and rule.get('ToPort') == 80 and '0.0.0.0/0' in [ip['CidrIp'] for ip in rule.get('IpRanges', [])]]
@@ -146,6 +190,16 @@ def find_matching_sg(vpc_id):
 
 # Function to generate a unique security group name
 def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
+    """
+    Generates a unique name for a security group within a VPC.
+    
+    Parameters:
+    - base_name: The base name for the security group.
+    - vpc_id: The ID of the VPC.
+    
+    Returns a unique security group name.
+    """
+
     unique_name = base_name
     attempt = 0
     while True:
@@ -158,6 +212,12 @@ def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
     return unique_name
 
 def get_default_vpc_id():
+    """
+    Retrieves the default VPC ID for the AWS account.
+    
+    Returns the ID of the default VPC, if available.
+    """
+
     response = ec2_client.describe_vpcs(
         Filters=[
             {'Name': 'isDefault', 'Values': ['true']}
@@ -171,6 +231,12 @@ def get_default_vpc_id():
         return None
 
 def get_image():
+    """
+    Downloads an image from a specified URL and saves it locally.
+    
+    The URL is taken from the 'image_url' configuration variable.
+    """
+
     try:
         response = requests.get(image_url)
         if response.status_code == 200:
@@ -184,6 +250,16 @@ def get_buckets():
     pass
 
 def create_new_bucket(bucket_name, region=None):
+    """
+    Creates a new S3 bucket with a unique name.
+    
+    Parameters:
+    - bucket_name: The base name for the bucket.
+    - region: The AWS region to create the bucket in.
+    
+    Returns True on successful creation.
+    """
+
     new_bucket_name = generate_bucket_name(bucket_name)
     try:
         if region is None:
@@ -199,6 +275,12 @@ def create_new_bucket(bucket_name, region=None):
     return True
 
 def get_latest_amazon_linux_ami():
+    """
+    Retrieves the latest Amazon Linux AMI ID available for use.
+    
+    Returns the AMI ID.
+    """
+
     filters = [
         {
             'Name': 'name',
@@ -229,6 +311,15 @@ def get_latest_amazon_linux_ami():
 
 
 def generate_bucket_name(name):
+    """
+    Generates a unique name for an S3 bucket by appending random characters to the base name.
+    
+    Parameters:
+    - name: The base name for the bucket.
+    
+    Returns a unique bucket name.
+    """
+    
     characters = string.ascii_lowercase + string.digits
     random_characters = ('').join([random.choice(characters) for i in range(6)])
     return f"{name}-{random_characters}"
