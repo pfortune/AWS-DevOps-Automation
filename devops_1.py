@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Standard Library Imports
 import logging
 import requests
@@ -23,6 +25,7 @@ config.read('config.ini')
 
 key_name = config['AWS']['key_name'] or None
 ami_id = config['EC2']['ami_id'] or None
+instance_name = config['EC2']['instance_name'] or "NewLaunchWizard"
 instance_type = config['EC2']['instance_type'] or "t2.nano"
 security_group = config['EC2']['security_group'] or None
 image_url = config['S3']['image_url'] or None
@@ -58,7 +61,7 @@ EOF
 """
     return user_data
 
-def create_instance(key_name, instance_name, security_group, ami_id, instance_type):
+def create_instance(key_name=key_name, instance_name=instance_name, security_group=security_group, ami_id=ami_id, instance_type=instance_type):
     """
     Creates an EC2 instance with specified parameters.
     
@@ -313,7 +316,7 @@ def open_website(instance_ip, wait_time=5):
     while True:
         try:
             response = requests.get(f"http://{instance_ip}")
-            if r.status_code == 200:
+            if response.status_code == 200:
                 print("Web server is up and running.")
                 print(f"Opening web browser to http://{instance_ip}")
                 webbrowser.open(f"http://{instance_ip}")
