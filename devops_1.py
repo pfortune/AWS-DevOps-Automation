@@ -309,6 +309,18 @@ def get_latest_amazon_linux_ami():
     else:
         print("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
 
+def open_website(instance_ip, wait_time=5):
+    while True:
+        try:
+            response = requests.get(f"http://{instance_ip}")
+            if r.status_code == 200:
+                print("Web server is up and running.")
+                print(f"Opening web browser to http://{instance_ip}")
+                webbrowser.open(f"http://{instance_ip}")
+                return True
+        except requests.ConnectionError:
+            print(f"Web server not yet running, waiting {wait_time} seconds...")
+            sleep(wait_time)
 
 def generate_bucket_name(name):
     """
@@ -328,17 +340,10 @@ if __name__ == '__main__':
     instance_ip = create_instance()
     print(f"Instance IP: {instance_ip}")
     print("Waiting for web server to be ready...")
-    sleep(10)
-    while True:
-        try:
-            r = requests.get(f"http://{instance_ip}")
-            if r.status_code == 200:
-                print("Web server is up and running.")
-                print(f"Opening web browser to http://{instance_ip}")
-                webbrowser.open(f"http://{instance_ip}")
-                break
-        except requests.ConnectionError:
-            print("Web server not yet running, waiting 5 seconds...")
-            sleep(5)
+    sleep(5)
+    if open_website(instance_ip):
+        print("Website opened successfully.")
+    else:
+        print("Could not open the website.")
 
     create_new_bucket("peterf")
