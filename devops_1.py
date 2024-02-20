@@ -15,21 +15,15 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 # AWS Service Clients
 ec2 = boto3.resource('ec2', region_name='us-east-1')
-s3 = boto3.resource('s3')
+s3 = boto3.resource('s3', region_name='us-east-1')
 ec2_client = boto3.client('ec2', region_name='us-east-1')
 
-# Load configuration
-print("Loading configuration...")
-config = configparser.ConfigParser()
-config.read('config.ini')
+def load_configuration(config_path='config.ini'):
+    print("Loading configuration...")
+    config = configparser.ConfigParser()
+    config.read(config_path)
 
-key_name = config['AWS']['key_name'] or None
-ami_id = config['EC2']['ami_id'] or None
-instance_name = config['EC2']['instance_name'] or "NewLaunchWizard"
-instance_type = config['EC2']['instance_type'] or "t2.nano"
-security_group = config['EC2']['security_group'] or None
-image_url = config['S3']['image_url'] or None
-
+    return config
 
 def generate_user_data():
     """
@@ -61,7 +55,7 @@ EOF
 """
     return user_data
 
-def create_instance(key_name=key_name, instance_name=instance_name, security_group=security_group, ami_id=ami_id, instance_type=instance_type):
+def create_instance(**config):
     """
     Creates an EC2 instance with specified parameters.
     
@@ -74,29 +68,36 @@ def create_instance(key_name=key_name, instance_name=instance_name, security_gro
     
     Returns the public IP address of the created instance.
     """
-    
-    user_data = generate_user_data()
 
     try:
-        security_group_id = security_group or get_security_group()
-        ami_id = ami_id or get_latest_amazon_linux_ami()
-
         created_instances = ec2.create_instances(
-            ImageId=ami_id,
-            InstanceType=instance_type,
+            ImageId=config['ami_id'],
+            InstanceType=config['instance_type'] or instance_type,
             MinCount=1,
             MaxCount=1,
-            KeyName=key_name,
-            SecurityGroupIds=[security_group_id],
-            UserData=user_data,
+            KeyName=config['key_name'] or key_name,
+            SecurityGroupIds=config['security_group_id'] or security_group_id,
+            UserData=config['user_data'],
             TagSpecifications=[
                 {
                     'ResourceType': 'instance',
                     'Tags': [
                         {
                             'Key': 'Name',
-                            'Value': instance_name
+                            'Value': config['instance_name'] or instance_name
                         },
+                        {
+                            'Key': 'Environment',
+                            'Value': config.get('environment', 'Development')  # Add Environment tag
+                        },
+                        {
+                            'Key': 'Project',
+                            'Value': config.get('project')  # Add Project tag 
+                        },
+                        {
+                            'Key': 'Owner',
+                            'Value': config.get('owner')  # Add Owner tag
+                        }
                     ]
                 },
             ]
@@ -204,14 +205,13 @@ def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
     """
 
     unique_name = base_name
-    attempt = 0
     while True:
         existing_sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}, {'Name': 'group-name', 'Values': [unique_name]}])
         if not existing_sgs['SecurityGroups']:
             # If no existing SG matches the unique_name, it's unique
             break
         attempt += 1
-        unique_name = f"{base_name}-{random.choice(string.ascii_lowercase)}{attempt}"
+        unique_name = f"{base_name}-{random.choice(string.ascii_lowercase)}"
     return unique_name
 
 def get_default_vpc_id():
@@ -340,7 +340,17 @@ def generate_bucket_name(name):
     return f"{name}-{random_characters}"
 
 if __name__ == '__main__':
-    instance_ip = create_instance()
+
+    config = load_configuration()
+
+    key_name = config['AWS']['key_name'] or None
+    ami_id = config['EC2']['ami_id'] or get_latest_amazon_linux_ami()
+    instance_name = config['EC2']['instance_name'] or "NewLaunchWizard"
+    instance_type = config['EC2']['instance_type'] or "t2.nano"
+    security_group = config['EC2']['security_group'] or get_security_group()
+    image_url = config['S3']['image_url'] or None
+
+    instance_ip = create_instance(key_name, ami_id, instance_name, instance_type, security_group)
     print(f"Instance IP: {instance_ip}")
     print("Waiting for web server to be ready...")
     sleep(5)
