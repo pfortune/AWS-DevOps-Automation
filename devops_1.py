@@ -30,18 +30,6 @@ s3 = boto3.resource('s3', region_name='us-east-1')
 ec2_client = boto3.client('ec2', region_name='us-east-1')
 s3_client = boto3.client('s3', region_name='us-east-1')
 
-def log(logger=logging.getLogger(__name__)):
-    """
-    A decorator that logs the output of a function.
-    """
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            result = func(*args, **kwargs)
-            logger.error(result)
-            return result  
-        return wrapper
-    return decorator
-
 def error_handler(func):
     """
     A decorator that handles common AWS errors and exceptions.
@@ -51,23 +39,34 @@ def error_handler(func):
             return func(*args, **kwargs)
         except NoCredentialsError:
             print("No AWS credentials found. Please configure your credentials.")
+            logging.error("No AWS credentials found. Please configure your credentials.")
             exit(1)
         except ClientError as e:
             print(f"An error occurred: {e}")
+            logging.error(f"An error occurred: {e}")
         except ParamValidationError as e:
             print(f"Invalid parameters: {e}") 
+            logging.error(f"Invalid parameters: {e}")
         except TypeError as e:
             print(f"Invalid type: {e}")
+            logging.error(f"Invalid type: {e}")
         except ImportError as e:
             print(f"Import error: {e}")
+            logging.error(f"Import error: {e}")
     return wrapper
 
-@log
+def log(message, level="info"):
+    print(message)
+    if level == "info":
+        logging.info(message)
+    elif level == "error":
+        logging.error(message)
+
 def load_configuration(config_path='config.ini'):
     """
     Loads the configuration from the specified file.
     """
-    print("Loading configuration...")
+    log("Loading configuration...")
     config = configparser.ConfigParser()
     config.read(config_path)
 
@@ -103,7 +102,6 @@ EOF
 """
     return user_data
 
-@log
 @error_handler
 def create_instance(**config):
     """
@@ -142,13 +140,12 @@ def create_instance(**config):
     )
 
     instance = created_instances[0]
-    print("Waiting for the instance to enter running state...")
+    log("Waiting for the instance to enter running state...")
     instance.wait_until_running()  # Wait for the instance to be ready
     instance.reload()
-    print(f"Instance running, Public IP: {instance.public_ip_address}")
+    log(f"Instance running, Public IP: {instance.public_ip_address}")
     return instance.public_ip_address
 
-@log
 @error_handler
 def create_security_group(vpc_id, group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
     """
@@ -163,7 +160,7 @@ def create_security_group(vpc_id, group_name="NewLaunchWizard", description="All
     """
     # Create the security group
     sg = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
-    print(f"Security Group Created: {sg.id}")
+    log(f"Security Group Created: {sg.id}")
 
     # Add inbound rules
     sg.authorize_ingress(
@@ -174,11 +171,10 @@ def create_security_group(vpc_id, group_name="NewLaunchWizard", description="All
             {'FromPort': 22, 'ToPort': 22, 'IpProtocol': 'tcp', 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
         ]
     )
-    print("Inbound rules added for HTTP and SSH.")
+    log("Inbound rules added for HTTP and SSH.")
 
     return sg.id
 
-@log
 @error_handler
 def find_matching_sg(vpc_id):
     """
@@ -198,7 +194,6 @@ def find_matching_sg(vpc_id):
             return sg['GroupId']
     return None
 
-@log
 @error_handler
 def generate_unique_sg_name(base_name, vpc_id):
     """
@@ -220,7 +215,6 @@ def generate_unique_sg_name(base_name, vpc_id):
         unique_name = f"{base_name}-{random.choice(string.ascii_lowercase)}"
     return unique_name
 
-@log
 @error_handler
 def get_default_vpc_id():
     """
@@ -237,10 +231,9 @@ def get_default_vpc_id():
     if vpcs:
         return vpcs[0].get('VpcId')
     else:
-        print("No default VPC found.")
+        log("No default VPC found.")
         return None
 
-@log
 @error_handler
 def get_image(image_url):
     """
@@ -252,11 +245,10 @@ def get_image(image_url):
     if response.status_code == 200:
         with open("logo.png", "wb") as f:
             f.write(response.content)
-        print("Image downloaded successfully.")
+        log("Image downloaded successfully.")
     else:
-        print("Failed to download image.")
+        log("Failed to download image.")
 
-@log
 @error_handler
 def get_buckets():
     """
@@ -265,10 +257,9 @@ def get_buckets():
     Returns a list of bucket names.
     """
     buckets = [bucket.name for bucket in s3.buckets.all()]
-    print(f"Found {len(buckets)} buckets: {', '.join(buckets)}")
+    log(f"Found {len(buckets)} buckets: {', '.join(buckets)}")
     return buckets
 
-@log
 @error_handler
 def create_new_bucket(bucket_name, region=None):
     """
@@ -307,7 +298,7 @@ def create_new_bucket(bucket_name, region=None):
     s3.Bucket(bucket_name).Policy().put(Policy=json.dumps(bucket_policy))
     s3.BucketWebsite(bucket_name).put(WebsiteConfiguration=configuration)   
         
-    print(f"Bucket {bucket_name} created successfully.")
+    log(f"Bucket {bucket_name} created successfully.")
 
     return bucket_name
 
@@ -341,10 +332,10 @@ def get_latest_amazon_linux_ami():
 
     if amis['Images']:
         latest_ami = amis['Images'][0]
-        print(f"Retrieved the latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
+        log(f"Retrieved the latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
         return latest_ami['ImageId']
     else:
-        print("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
+        log("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
         return None
 
 def open_website(instance_ip, wait_time=5):
@@ -361,12 +352,12 @@ def open_website(instance_ip, wait_time=5):
         try:
             response = requests.get(f"http://{instance_ip}")
             if response.status_code == 200:
-                print("Web server is up and running.")
-                print(f"Opening web browser to http://{instance_ip}")
+                log("Web server is up and running.")
+                log(f"Opening web browser to http://{instance_ip}")
                 webbrowser.open(f"http://{instance_ip}")
                 return True
         except requests.ConnectionError:
-            print(f"Web server not yet running, waiting {wait_time} seconds...")
+            log(f"Web server not yet running, waiting {wait_time} seconds...")
             sleep(wait_time)
 
 def generate_bucket_name(name):
@@ -393,12 +384,12 @@ if __name__ == '__main__':
     vpc_id = get_default_vpc_id()
 
     if not vpc_id:
-        print("Unable to retrieve a valid VPC ID, exiting.")
+        log("Unable to retrieve a valid VPC ID, exiting.")
         exit(1)
 
     if not config['security_group']:
         security_group_id = find_matching_sg(vpc_id)
-        print(f"Matching security group found: {security_group_id}")
+        log(f"Matching security group found: {security_group_id}")
         if not security_group_id:
             security_group_name = generate_unique_sg_name("NewLaunchWizard", vpc_id)
             config['security_group'] = create_security_group(vpc_id, group_name=security_group_name)
