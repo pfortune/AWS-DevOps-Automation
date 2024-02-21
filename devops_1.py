@@ -110,7 +110,7 @@ def create_instance(**config):
         MinCount=1,
         MaxCount=1,
         KeyName=config['key_name'],
-        SecurityGroupIds=config['security_group_id'],
+        SecurityGroupIds=[config['security_group']],
         UserData=config['user_data'],
         TagSpecifications=[
             {
@@ -119,18 +119,6 @@ def create_instance(**config):
                     {
                         'Key': 'Name',
                         'Value': config['instance_name']
-                    },
-                    {
-                        'Key': 'Environment',
-                        'Value': config.get('environment', 'Development')  # Add Environment tag
-                    },
-                    {
-                        'Key': 'Project',
-                        'Value': config.get('project')  # Add Project tag 
-                    },
-                    {
-                        'Key': 'Owner',
-                        'Value': config.get('owner')  # Add Owner tag
                     }
                 ]
             },
@@ -391,6 +379,8 @@ if __name__ == '__main__':
 
     config = load_configuration()
 
+    config['user_data'] = generate_user_data()
+
     # Get the latest Amazon Linux AMI
     if not config['ami_id']:
         config['ami_id'] = get_latest_amazon_linux_ami()
@@ -404,15 +394,18 @@ if __name__ == '__main__':
 
     if not config['security_group']:
         security_group_id = find_matching_sg(vpc_id)
+        logging.info(f"Matching security group found: {security_group_id}")
         if not security_group_id:
             security_group_name = generate_unique_sg_name("NewLaunchWizard", vpc_id)
             config['security_group'] = create_security_group(vpc_id, group_name=security_group_name)
+        else:
+            config['security_group'] = security_group_id
 
     instance_ip = create_instance(**config)
 
     # create_new_bucket("peterf")
-    if instance_ip:
-        open_website(instance_ip)
+    # if instance_ip:
+    #     open_website(instance_ip)
         
 
 
