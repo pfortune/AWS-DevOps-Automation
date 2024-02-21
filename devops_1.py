@@ -25,6 +25,16 @@ def load_configuration(config_path='config.ini'):
 
     return config
 
+def error_handler(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except NoCredentialsError:
+            print("No AWS credentials found. Please configure your credentials.")
+        except ClientError as e:
+            print(f"An error occurred: {e}")
+    return wrapper
+
 def generate_user_data():
     """
     Generates a user data script for EC2 instance initialization.
@@ -55,6 +65,7 @@ EOF
 """
     return user_data
 
+@error_handler
 def create_instance(**config):
     """
     Creates an EC2 instance with specified parameters.
@@ -68,53 +79,47 @@ def create_instance(**config):
     
     Returns the public IP address of the created instance.
     """
+    created_instances = ec2.create_instances(
+        ImageId=config['ami_id'],
+        InstanceType=config['instance_type'] or instance_type,
+        MinCount=1,
+        MaxCount=1,
+        KeyName=config['key_name'] or key_name,
+        SecurityGroupIds=config['security_group_id'] or security_group_id,
+        UserData=config['user_data'],
+        TagSpecifications=[
+            {
+                'ResourceType': 'instance',
+                'Tags': [
+                    {
+                        'Key': 'Name',
+                        'Value': config['instance_name'] or instance_name
+                    },
+                    {
+                        'Key': 'Environment',
+                        'Value': config.get('environment', 'Development')  # Add Environment tag
+                    },
+                    {
+                        'Key': 'Project',
+                        'Value': config.get('project')  # Add Project tag 
+                    },
+                    {
+                        'Key': 'Owner',
+                        'Value': config.get('owner')  # Add Owner tag
+                    }
+                ]
+            },
+        ]
+    )
 
-    try:
-        created_instances = ec2.create_instances(
-            ImageId=config['ami_id'],
-            InstanceType=config['instance_type'] or instance_type,
-            MinCount=1,
-            MaxCount=1,
-            KeyName=config['key_name'] or key_name,
-            SecurityGroupIds=config['security_group_id'] or security_group_id,
-            UserData=config['user_data'],
-            TagSpecifications=[
-                {
-                    'ResourceType': 'instance',
-                    'Tags': [
-                        {
-                            'Key': 'Name',
-                            'Value': config['instance_name'] or instance_name
-                        },
-                        {
-                            'Key': 'Environment',
-                            'Value': config.get('environment', 'Development')  # Add Environment tag
-                        },
-                        {
-                            'Key': 'Project',
-                            'Value': config.get('project')  # Add Project tag 
-                        },
-                        {
-                            'Key': 'Owner',
-                            'Value': config.get('owner')  # Add Owner tag
-                        }
-                    ]
-                },
-            ]
-        )
+    instance = created_instances[0]
+    print("Waiting for the instance to enter running state...")
+    instance.wait_until_running()  # Wait for the instance to be ready
+    instance.reload()
+    print(f"Instance running, Public IP: {instance.public_ip_address}")
+    return instance.public_ip_address
 
-        instance = created_instances[0]
-        print("Waiting for the instance to enter running state...")
-        instance.wait_until_running()  # Wait for the instance to be ready
-        instance.reload()
-        print(f"Instance running, Public IP: {instance.public_ip_address}")
-        return instance.public_ip_address
-    except ClientError as e:
-        logging.error(e)
-        print(f"An error occured creating instance: {e}")
-    except NoCredentialsError as e:
-        print(f"An error occured with your credentials: {e}")
-
+@error_handler
 def get_security_group():
     """
     Retrieves an existing security group that matches specified criteria or creates a new one.
@@ -141,6 +146,7 @@ def get_security_group():
 
     return security_group_id
 
+@error_handler
 def create_security_group(vpc_id, group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
     """
     Creates a new security group in the specified VPC.
@@ -173,6 +179,7 @@ def create_security_group(vpc_id, group_name="NewLaunchWizard", description="All
 
     return sg.id
 
+@error_handler
 def find_matching_sg(vpc_id):
     """
     Searches for an existing security group in the specified VPC that allows HTTP and SSH access.
@@ -192,7 +199,7 @@ def find_matching_sg(vpc_id):
             return sg['GroupId']
     return None
 
-# Function to generate a unique security group name
+@error_handler
 def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
     """
     Generates a unique name for a security group within a VPC.
@@ -214,6 +221,7 @@ def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
         unique_name = f"{base_name}-{random.choice(string.ascii_lowercase)}"
     return unique_name
 
+@error_handler
 def get_default_vpc_id():
     """
     Retrieves the default VPC ID for the AWS account.
@@ -233,25 +241,32 @@ def get_default_vpc_id():
         print("No default VPC found.")
         return None
 
+@error_handler
 def get_image():
     """
     Downloads an image from a specified URL and saves it locally.
     
     The URL is taken from the 'image_url' configuration variable.
     """
+    response = requests.get(image_url)
+    if response.status_code == 200:
+        with open("logo.png", "wb") as f:
+            f.write(response.content)
+        print("Image downloaded successfully.")
 
-    try:
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            with open("logo.png", "wb") as f:
-                f.write(response.content)
-            print("Image downloaded successfully.")
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred downloading the image: {e}")
-
+@error_handler
 def get_buckets():
-    pass
+    """
+    Retrieves a list of all S3 buckets in the account.
+    
+    Returns a list of bucket names.
+    """
 
+    buckets = [bucket.name for bucket in s3.buckets.all()]
+    print(f"Found {len(buckets)} buckets: {', '.join(buckets)}")
+    return buckets
+
+@error_handler
 def create_new_bucket(bucket_name, region=None):
     """
     Creates a new S3 bucket with a unique name.
@@ -264,19 +279,18 @@ def create_new_bucket(bucket_name, region=None):
     """
 
     new_bucket_name = generate_bucket_name(bucket_name)
-    try:
-        if region is None:
-            s3.create_bucket(Bucket=new_bucket_name)
-        else:
-            location = {'LocationConstraint': region}
-            s3.create_bucket(Bucket=new_bucket_name,
-                                    CreateBucketConfiguration=location)
-        print(f"Bucket {new_bucket_name} created successfully.")
-    except ClientError as e:
-        logging.error(e)
-        print(f"An error occured creating instance: {e}")
+    
+    if region is None:
+        s3.create_bucket(Bucket=new_bucket_name)
+    else:
+        location = {'LocationConstraint': region}
+        s3.create_bucket(Bucket=new_bucket_name,
+                                CreateBucketConfiguration=location)
+    print(f"Bucket {new_bucket_name} created successfully.")
+
     return True
 
+@error_handler
 def get_latest_amazon_linux_ami():
     """
     Retrieves the latest Amazon Linux AMI ID available for use.
