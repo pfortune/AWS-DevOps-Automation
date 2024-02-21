@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
 
+# TODO: Write URLs to File
+# TODO: Upload to Bucket
+# TODO: SSH Interactions
+# TODO: Enhance monitoring.sh
+# TODO: Flesh out Logging
+
 # Standard Library Imports
 import logging
 import requests
 import random
 import string
+import subprocess
+import json
 from time import sleep
 import webbrowser
 import configparser
 
 # Third Party Imports
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError, NoCredentialsError, ParamValidationError
+
+# Logging Configuration
+logging.basicConfig(filename='devops.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # AWS Service Clients
 ec2 = boto3.resource('ec2', region_name='us-east-1')
@@ -23,7 +34,7 @@ def load_configuration(config_path='config.ini'):
     config = configparser.ConfigParser()
     config.read(config_path)
 
-    return config
+    return config['DEFAULT']
 
 def error_handler(func):
     def wrapper(*args, **kwargs):
@@ -31,8 +42,22 @@ def error_handler(func):
             return func(*args, **kwargs)
         except NoCredentialsError:
             print("No AWS credentials found. Please configure your credentials.")
+            logging.error("No AWS credentials found. Please configure your credentials.")
+            exit(1)
         except ClientError as e:
             print(f"An error occurred: {e}")
+            logging.error(f"An error occurred: {e}")
+        except ParamValidationError as e:
+            print(f"Invalid parameters: {e}") 
+            logging.error(f"Invalid parameters: {e}")  
+        except TypeError as e:
+            print(f"Invalid type: {e}")
+            logging.error(f"Invalid type: {e}")
+        except ImportError as e:
+            print(f"Import error: {e}")
+            logging.error(f"Import error: {e}")
+            
+        print("-----------")
     return wrapper
 
 def generate_user_data():
@@ -81,11 +106,11 @@ def create_instance(**config):
     """
     created_instances = ec2.create_instances(
         ImageId=config['ami_id'],
-        InstanceType=config['instance_type'] or instance_type,
+        InstanceType=config['instance_type'],
         MinCount=1,
         MaxCount=1,
-        KeyName=config['key_name'] or key_name,
-        SecurityGroupIds=config['security_group_id'] or security_group_id,
+        KeyName=config['key_name'],
+        SecurityGroupIds=config['security_group_id'],
         UserData=config['user_data'],
         TagSpecifications=[
             {
@@ -93,7 +118,7 @@ def create_instance(**config):
                 'Tags': [
                     {
                         'Key': 'Name',
-                        'Value': config['instance_name'] or instance_name
+                        'Value': config['instance_name']
                     },
                     {
                         'Key': 'Environment',
@@ -114,37 +139,12 @@ def create_instance(**config):
 
     instance = created_instances[0]
     print("Waiting for the instance to enter running state...")
+    logging.info(f"Waiting for the instance to enter running state...")
     instance.wait_until_running()  # Wait for the instance to be ready
     instance.reload()
     print(f"Instance running, Public IP: {instance.public_ip_address}")
+    logging.info(f"Instance running, Public IP: {instance.public_ip_address}")
     return instance.public_ip_address
-
-@error_handler
-def get_security_group():
-    """
-    Retrieves an existing security group that matches specified criteria or creates a new one.
-    
-    Returns the ID of the security group.
-    """
-
-    # Get the default VPC ID
-    vpc_id = get_default_vpc_id()
-    if not vpc_id:
-        print("Unable to retrieve a valid VPC ID, exiting.")
-        return None
-
-    # Check for an existing security group that matches the criteria
-    security_group_id = find_matching_sg(vpc_id)
-    if security_group_id:
-        print(f"Found matching security group {security_group_id}, using it.")
-    else:
-        # Create a new security group if none found
-        security_group_id = create_security_group(vpc_id=vpc_id)
-        if security_group_id is None:
-            print("Failed to create security group, exiting.")
-            return None
-
-    return security_group_id
 
 @error_handler
 def create_security_group(vpc_id, group_name="NewLaunchWizard", description="Allows access to HTTP and SSH ports"):
@@ -158,9 +158,6 @@ def create_security_group(vpc_id, group_name="NewLaunchWizard", description="All
     
     Returns the ID of the created security group.
     """
-    
-    # Check if the security group name already exists
-    group_name = generate_unique_sg_name(group_name, vpc_id)
     
     # Create the security group
     sg = ec2.create_security_group(GroupName=group_name, Description=description, VpcId=vpc_id)
@@ -200,7 +197,7 @@ def find_matching_sg(vpc_id):
     return None
 
 @error_handler
-def generate_unique_sg_name(base_name: str, vpc_id: str) -> str:
+def generate_unique_sg_name(base_name, vpc_id):
     """
     Generates a unique name for a security group within a VPC.
     
@@ -242,17 +239,22 @@ def get_default_vpc_id():
         return None
 
 @error_handler
-def get_image():
+def get_image(image_url):
     """
     Downloads an image from a specified URL and saves it locally.
     
     The URL is taken from the 'image_url' configuration variable.
     """
+    
     response = requests.get(image_url)
     if response.status_code == 200:
         with open("logo.png", "wb") as f:
             f.write(response.content)
         print("Image downloaded successfully.")
+        logging.info(f"Successfully downloaded image from {image_url}.")
+    else:
+        print("Failed to download image.")
+        logging.error(f"Failed to download image from {image_url}.")
 
 @error_handler
 def get_buckets():
@@ -276,17 +278,37 @@ def create_new_bucket(bucket_name, region=None):
     - region: The AWS region to create the bucket in.
     
     Returns True on successful creation.
-    """
-
-    new_bucket_name = generate_bucket_name(bucket_name)
-    
+    """    
     if region is None:
-        s3.create_bucket(Bucket=new_bucket_name)
+        s3.create_bucket(Bucket=bucket_name)
     else:
         location = {'LocationConstraint': region}
-        s3.create_bucket(Bucket=new_bucket_name,
+        s3.create_bucket(Bucket=bucket_name,
                                 CreateBucketConfiguration=location)
-    print(f"Bucket {new_bucket_name} created successfully.")
+        s3.delete_public_access_block(Bucket=bucket_name)
+
+        bucket_policy = {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": ["s3:GetObject"],
+                "Resource": f"arn:aws:s3:::{bucket_name}/*"
+            }]   
+        }
+
+        configuration = {
+            'ErrorDocument': {'Key': 'error.html'},
+            'IndexDocument': {'Suffix': 'index.html'},
+        }
+
+        s3.Bucket(bucket_name).Policy().put(Policy=json.dumps(bucket_policy))
+        s3.BucketWebsite(bucket_name).put(WebsiteConfiguration=configuration)   
+
+        
+    print(f"Bucket {bucket_name} created successfully.")
+    logging.info(f"Bucket {bucket_name} created successfully.")
 
     return True
 
@@ -321,12 +343,24 @@ def get_latest_amazon_linux_ami():
 
     if amis['Images']:
         latest_ami = amis['Images'][0]
-        print(f"Latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
+        print(f"Retrieved the latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
+        logging.info(f"Retrieved the latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
         return latest_ami['ImageId']
     else:
         print("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
+        logging.error("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
+        return None
 
 def open_website(instance_ip, wait_time=5):
+    """
+    Opens a web browser to the specified instance's public IP address.
+
+    Parameters:
+    - instance_ip: The public IP address of the instance.
+    - wait_time: The time to wait between attempts to connect to the web server.
+
+    Returns True if the web server is up and running.
+    """
     while True:
         try:
             response = requests.get(f"http://{instance_ip}")
@@ -357,20 +391,28 @@ if __name__ == '__main__':
 
     config = load_configuration()
 
-    key_name = config['AWS']['key_name'] or None
-    ami_id = config['EC2']['ami_id'] or get_latest_amazon_linux_ami()
-    instance_name = config['EC2']['instance_name'] or "NewLaunchWizard"
-    instance_type = config['EC2']['instance_type'] or "t2.nano"
-    security_group = config['EC2']['security_group'] or get_security_group()
-    image_url = config['S3']['image_url'] or None
+    # Get the latest Amazon Linux AMI
+    if not config['ami_id']:
+        config['ami_id'] = get_latest_amazon_linux_ami()
 
-    instance_ip = create_instance(key_name, ami_id, instance_name, instance_type, security_group)
-    print(f"Instance IP: {instance_ip}")
-    print("Waiting for web server to be ready...")
-    sleep(5)
-    if open_website(instance_ip):
-        print("Website opened successfully.")
-    else:
-        print("Could not open the website.")
+    vpc_id = get_default_vpc_id()
 
-    create_new_bucket("peterf")
+    if not vpc_id:
+        print("Unable to retrieve a valid VPC ID, exiting.")
+        logging.error("Unable to retrieve a valid VPC ID, exiting.")
+        exit(1)
+
+    if not config['security_group']:
+        security_group_id = find_matching_sg(vpc_id)
+        if not security_group_id:
+            security_group_name = generate_unique_sg_name("NewLaunchWizard", vpc_id)
+            config['security_group'] = create_security_group(vpc_id, group_name=security_group_name)
+
+    instance_ip = create_instance(**config)
+
+    # create_new_bucket("peterf")
+    if instance_ip:
+        open_website(instance_ip)
+        
+
+
