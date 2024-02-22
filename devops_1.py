@@ -32,28 +32,30 @@ def error_handler(func):
     """
     A decorator that handles common AWS errors and exceptions.
     """
-    def wrapper(*args, **kwargs):
+    def _Decorator(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except NoCredentialsError:
-            print("No AWS credentials found. Please configure your credentials.")
-            logging.error("No AWS credentials found. Please configure your credentials.")
+            log("No AWS credentials found. Please configure your credentials.", "error")
             exit(1)
         except ClientError as e:
-            print(f"An error occurred: {e}")
-            logging.error(f"An error occurred: {e}")
+            log(f"An error occurred: {e}", "error")
         except ParamValidationError as e:
-            print(f"Invalid parameters: {e}") 
-            logging.error(f"Invalid parameters: {e}")
+            log(f"Invalid parameters: {e}", "error")
         except TypeError as e:
-            print(f"Invalid type: {e}")
-            logging.error(f"Invalid type: {e}")
+            log(f"Invalid type: {e}", "error")
         except ImportError as e:
-            print(f"Import error: {e}")
-            logging.error(f"Import error: {e}")
-    return wrapper
+            log(f"Import error: {e}", "error")
+    return _Decorator
 
 def log(message, level="info"):
+    """
+    Logs a message to the console and a log file.
+
+    Parameters:
+    - message: The message to log.
+    - level: The log level (info, error).
+    """
     print(message)
     if level == "info":
         logging.info(message)
@@ -63,6 +65,11 @@ def log(message, level="info"):
 def load_configuration(config_path='config.ini'):
     """
     Loads the configuration from the specified file.
+
+    Parameters:
+    - config_path: The path to the configuration file.
+
+    Returns the configuration as a dictionary.
     """
     log("Loading configuration...")
     config = configparser.ConfigParser()
@@ -76,6 +83,8 @@ def generate_user_data():
     Generates a user data script for EC2 instance initialization.
     This script updates the system, installs and starts Apache HTTP Server,
     and creates a custom index.html page with the instance's metadata.
+
+    Returns the user data script as a string.
     """
     user_data = """#!/bin/bash
 yum update -y
@@ -193,6 +202,7 @@ def find_matching_sg(vpc_id):
         ssh_rules = [rule for rule in sg['IpPermissions'] if rule.get('FromPort') == 22 and rule.get('ToPort') == 22 and '0.0.0.0/0' in [ip['CidrIp'] for ip in rule.get('IpRanges', [])]]
 
         if http_rules and ssh_rules:
+            log(f"Found matching security group: {sg['GroupId']}")
             return sg['GroupId']
     return None
 
@@ -243,8 +253,11 @@ def get_default_vpc_id():
 def get_image(image_url):
     """
     Downloads an image from a specified URL and saves it locally.
-    
-    The URL is taken from the 'image_url' configuration variable.
+
+    Parameters:
+    - image_url: The URL of the image to download.
+
+    Returns the file path of the downloaded image.
     """
     response = requests.get(image_url)
     if response.status_code == 200:
@@ -301,6 +314,8 @@ def create_new_bucket(bucket_name, region=None):
 def get_html():
     """
     Generates an HTML page to be uploaded to the S3 bucket.
+
+    Returns the file path of the generated HTML page.
     """
     page = f"""<!DOCTYPE html>
 <html>
@@ -325,6 +340,12 @@ def get_html():
 def get_txt_file(ec2_url, s3_url):
     """
     Writes a list of URLs to a text file.
+
+    Parameters:
+    - ec2_url: The URL of the EC2 instance.
+    - s3_url: The URL of the S3 bucket.
+
+    Returns the file path of the generated text file.
     """
     urls = f"EC2 Instance: {ec2_url}\nS3 Bucket: {s3_url}"
     try:
@@ -404,6 +425,8 @@ def upload_to_bucket(bucket_name, files):
     Parameters:
     - bucket_name: The name of the S3 bucket.
     - files: A list of file paths to upload.
+
+    Returns True on successful upload.
     """
     for file_path in files:
         if file_path:  # Check if the file path is not None
@@ -431,6 +454,11 @@ def upload_to_bucket(bucket_name, files):
 def url(string):
     """
     Creates a URL from a string.
+
+    Parameters:
+    - string: The string to convert to a URL.
+
+    Returns a URL.
     """
     return f"http://{string}"
 
@@ -452,6 +480,13 @@ def generate_bucket_name(name):
 def ssh_interact(key_name, public_ip, user="ec2-user"):
     """
     Interacts with the SSH server on the EC2 instance to copy and execute monitoring.sh.
+
+    Parameters:
+    - key_name: The name of the SSH key pair.
+    - public_ip: The public IP address of the EC2 instance.
+    - user: The username to use for SSH authentication.
+
+    Returns True on successful execution.
     """
     pem_file = f"{key_name}.pem"  # Ensure this path is correct and the file has appropriate permissions (chmod 400)
     
@@ -507,6 +542,9 @@ def delete_all_buckets():
         log(f"Deleted bucket {bucket.name}")
 
 if __name__ == '__main__':
+    """
+    Main entry point for the script.
+    """
     cli_result = not None
     # Parse command line arguments
     if len(sys.argv) > 1:
