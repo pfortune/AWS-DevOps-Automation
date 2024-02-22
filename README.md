@@ -16,7 +16,7 @@ This Python project automates the provisioning and monitoring of web servers on 
 
 - Python 3 installed on your local machine ([https://www.python.org/](https://www.python.org/)).
 - Boto3 library installed (`pip3 install boto3`).
-- Google Fire installed (`pip3 install fire`).
+- Python Fire installed (`pip3 install fire`).
 - An AWS account with properly configured credentials (typically in `~/.aws/credentials`).
 - An existing SSH key pair for EC2 access, placed in the same directory as the script.
 
