@@ -21,13 +21,6 @@ from botocore.exceptions import ClientError, NoCredentialsError, ParamValidation
 # Logging Configuration
 logging.basicConfig(filename='devops.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# AWS Service Clients
-ec2 = boto3.resource('ec2', region_name='us-east-1')
-s3 = boto3.resource('s3', region_name='us-east-1')
-ec2_client = boto3.client('ec2', region_name='us-east-1')
-s3_client = boto3.client('s3', region_name='us-east-1')
-cloudwatch = boto3.resource('cloudwatch', region_name='us-east-1')
-
 # ANSI Colour Codes
 COLOURS = {
     "info": "\033[92m",  # Green
@@ -260,7 +253,7 @@ def get_default_vpc_id():
         log(f"Found default VPC: {vpcs[0].get('VpcId')}")
         return vpcs[0].get('VpcId')
     else:
-        log("No default VPC found.")
+        log("No default VPC found.", "error")
         return None
 
 @error_handler
@@ -281,7 +274,7 @@ def get_image(image_url):
         log("Image downloaded successfully.")
         return "logo.png"
     else:
-        log("Failed to download image.")
+        log("Failed to download image.", "error")
 
 @error_handler
 def create_new_bucket(bucket_name, region=None):
@@ -349,7 +342,7 @@ def get_html():
         log("HTML page generated successfully.")
         return "index.html"
     except Exception as e:
-        log(f"Failed to generate HTML page: {e}")
+        log(f"Failed to generate HTML page: {e}", "error")
 
 def get_txt_file(ec2_url, s3_url):
     """
@@ -369,10 +362,10 @@ def get_txt_file(ec2_url, s3_url):
         # Return the file path
         return "urls.txt"
     except Exception as e:
-        log(f"Failed to write URLs to file: {e}")
+        log(f"Failed to write URLs to file: {e}", "error")
     
 @error_handler
-def get_latest_amazon_linux_ami(region='us-east-1'):
+def get_latest_amazon_linux_ami(region):
     """
     Retrieves the latest Amazon Linux AMI ID using Systems Manager Parameter Store.
 
@@ -446,7 +439,7 @@ def upload_to_bucket(bucket_name, files):
                 )
                 log(f"Uploaded {file_name} to {bucket_name} successfully.")
             except ClientError as e:
-                log(f"Failed to upload {file_name} to {bucket_name}: {e}", level="error")
+                log(f"Failed to upload {file_name} to {bucket_name}: {e}", "error")
 
 def url(string):
     """
@@ -540,7 +533,7 @@ def delete_all_buckets():
     for bucket in s3.buckets.all():
         bucket.objects.all().delete()
         bucket.delete()
-        log(f"Deleted bucket {bucket.name}")
+        log(f"Deleted bucket {bucket.name}", "warning")
 
 def get_header():
     print("""
@@ -572,11 +565,18 @@ if __name__ == '__main__':
         # Load the configuration
         config = load_configuration()
 
+        # AWS Service Clients
+        ec2 = boto3.resource('ec2', region_name=config['region'])
+        s3 = boto3.resource('s3', region_name=config['region'])
+        ec2_client = boto3.client('ec2', region_name=config['region'])
+        s3_client = boto3.client('s3', region_name=config['region'])
+        cloudwatch = boto3.resource('cloudwatch', region_name=config['region'])
+
         config['user_data'] = generate_user_data()
 
         # Get the latest Amazon Linux AMI
         if not config['ami_id']:
-            config['ami_id'] = get_latest_amazon_linux_ami()
+            config['ami_id'] = get_latest_amazon_linux_ami(config['region'])
 
         vpc_id = get_default_vpc_id()
 
@@ -600,14 +600,14 @@ if __name__ == '__main__':
 
         bucket_name = generate_bucket_name(config['bucket_seed'])
         bucket = create_new_bucket(bucket_name)
-        bucket_url = url(f"{bucket_name}.s3-website-us-east-1.amazonaws.com")
+        bucket_url = url(f"{bucket_name}.s3-website-{config['region']}.amazonaws.com")
 
         if bucket:
             image = get_image(config['image_url'])
             html = get_html()
             txt_file = get_txt_file(instance_url, bucket_url)
             upload_to_bucket(bucket_name, [image, html, txt_file])
-            log(f"Bucket URL: {bucket_url}", level="info")
+            log(f"Bucket URL: {bucket_url}", "info")
             open_website(bucket_url)
 
         ssh_interact(config['key_name'], instance_ip)
