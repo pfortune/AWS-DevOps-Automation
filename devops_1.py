@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO: Upload to Bucket
 # TODO: SSH Interactions
 # TODO: Enhance monitoring.sh
 
@@ -10,6 +9,7 @@ import requests
 import random
 import string
 import subprocess
+import os
 import json
 from time import sleep
 import webbrowser
@@ -339,6 +339,7 @@ def get_txt_file(ec2_url, s3_url):
         with open("urls.txt", "w") as f:
             f.write(urls)
         log("URLs written to file successfully.")
+        # Return the file path
         return "urls.txt"
     except Exception as e:
         log(f"Failed to write URLs to file: {e}")
@@ -403,6 +404,37 @@ def open_website(url, wait_time=5):
             log(f"Web server not yet running, waiting {wait_time} seconds...")
             sleep(wait_time)
 
+def upload_to_bucket(bucket_name, files):
+    """
+    Uploads a list of files to the specified S3 bucket with the correct MIME types.
+
+    Parameters:
+    - bucket_name: The name of the S3 bucket.
+    - files: A list of file paths to upload.
+    """
+    for file_path in files:
+        if file_path:  # Check if the file path is not None
+            file_name = os.path.basename(file_path)
+            content_type = ''
+
+            if file_name.endswith('.html'):
+                content_type = 'text/html'
+            elif file_name.endswith('.txt'):
+                content_type = 'text/plain'
+            elif file_name.endswith('.png'):
+                content_type = 'image/png'
+            try:
+                # Specify ContentType in the upload
+                s3_client.upload_file(
+                    Filename=file_path,
+                    Bucket=bucket_name,
+                    Key=file_name,
+                    ExtraArgs={'ContentType': content_type} if content_type else None
+                )
+                log(f"Uploaded {file_name} to {bucket_name} successfully.")
+            except ClientError as e:
+                log(f"Failed to upload {file_name} to {bucket_name}: {e}", level="error")
+
 def url(string):
     """
     Creates a URL from a string.
@@ -459,6 +491,6 @@ if __name__ == '__main__':
         image = get_image(config['image_url'])
         html = get_html()
         txt_file = get_txt_file(instance_url, bucket_url)
-        # upload_to_bucket(bucket_name, [image, html, txt_file])
+        upload_to_bucket(bucket_name, [image, html, txt_file])
         log(f"Bucket URL: {bucket_url}", level="info")
         open_website(bucket_url)
