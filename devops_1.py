@@ -257,17 +257,6 @@ def get_image(image_url):
         log("Failed to download image.")
 
 @error_handler
-def get_buckets():
-    """
-    Retrieves a list of all S3 buckets in the account.
-    
-    Returns a list of bucket names.
-    """
-    buckets = [bucket.name for bucket in s3.buckets.all()]
-    log(f"Found {len(buckets)} buckets: {', '.join(buckets)}")
-    return buckets
-
-@error_handler
 def create_new_bucket(bucket_name, region=None):
     """
     Creates a new S3 bucket with a unique name.
@@ -492,7 +481,6 @@ if __name__ == '__main__':
 
     if bucket:
         image = get_image(config['image_url'])
-        log(f"Image: {image}")
         html = get_html()
         txt_file = get_txt_file(instance_url, bucket_url)
         upload_to_bucket(bucket_name, [image, html, txt_file])
