@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-# TODO: Write URLs to File
 # TODO: Upload to Bucket
 # TODO: SSH Interactions
 # TODO: Enhance monitoring.sh
-# TODO: Flesh out Logging
 
 # Standard Library Imports
 import logging
@@ -69,6 +67,7 @@ def load_configuration(config_path='config.ini'):
     log("Loading configuration...")
     config = configparser.ConfigParser()
     config.read(config_path)
+    log("Configuration loaded successfully.")
 
     return config['DEFAULT']
 
@@ -100,6 +99,8 @@ cat <<EOF > /var/www/html/index.html
 </html>
 EOF
 """
+
+    log("User data script generated successfully.")
     return user_data
 
 @error_handler
@@ -213,6 +214,8 @@ def generate_unique_sg_name(base_name, vpc_id):
             break
         attempt += 1
         unique_name = f"{base_name}-{random.choice(string.ascii_lowercase)}"
+
+    log(f"Generated unique security group name: {unique_name}")
     return unique_name
 
 @error_handler
@@ -229,6 +232,7 @@ def get_default_vpc_id():
     )
     vpcs = response.get('Vpcs', [])
     if vpcs:
+        log(f"Found default VPC: {vpcs[0].get('VpcId')}")
         return vpcs[0].get('VpcId')
     else:
         log("No default VPC found.")
@@ -300,8 +304,45 @@ def create_new_bucket(bucket_name, region=None):
         
     log(f"Bucket {bucket_name} created successfully.")
 
-    return bucket_name
+    return True
 
+def get_html():
+    """
+    Generates an HTML page to be uploaded to the S3 bucket.
+    """
+    page = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Waterford</title>
+</head>
+<body>
+    <h1>Welcome to my DevOps Website</h1>
+    <img src="logo.png" alt="Logo" style="width: 200px; height: 200px;">
+</body>
+</html>
+"""
+    try:
+        with open("index.html", "w") as f:
+            f.write(page)
+
+        log("HTML page generated successfully.")
+        return "index.html"
+    except Exception as e:
+        log(f"Failed to generate HTML page: {e}")
+
+def get_txt_file(ec2_url, s3_url):
+    """
+    Writes a list of URLs to a text file.
+    """
+    urls = f"EC2 Instance: {ec2_url}\nS3 Bucket: {s3_url}"
+    try:
+        with open("urls.txt", "w") as f:
+            f.write(urls)
+        log("URLs written to file successfully.")
+        return "urls.txt"
+    except Exception as e:
+        log(f"Failed to write URLs to file: {e}")
+    
 @error_handler
 def get_latest_amazon_linux_ami():
     """
@@ -338,27 +379,35 @@ def get_latest_amazon_linux_ami():
         log("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
         return None
 
-def open_website(instance_ip, wait_time=5):
+def open_website(url, wait_time=5):
     """
-    Opens a web browser to the specified instance's public IP address.
+    Opens a web browser to the specified url.
 
     Parameters:
-    - instance_ip: The public IP address of the instance.
+    - url: The URL to open in the web browser.
     - wait_time: The time to wait between attempts to connect to the web server.
 
     Returns True if the web server is up and running.
     """
     while True:
         try:
-            response = requests.get(f"http://{instance_ip}")
+            response = requests.get(f"{url}")
+            log(f"Checking if web server is up at {url}...")
             if response.status_code == 200:
                 log("Web server is up and running.")
-                log(f"Opening web browser to http://{instance_ip}")
-                webbrowser.open(f"http://{instance_ip}")
+                log(f"Opening web browser to {url}")
+                webbrowser.open(f"{url}")
                 return True
         except requests.ConnectionError:
+            log(f"Error connecting to {url}.", "error")
             log(f"Web server not yet running, waiting {wait_time} seconds...")
             sleep(wait_time)
+
+def url(string):
+    """
+    Creates a URL from a string.
+    """
+    return f"http://{string}"
 
 def generate_bucket_name(name):
     """
@@ -371,7 +420,8 @@ def generate_bucket_name(name):
     """
     characters = string.ascii_lowercase + string.digits
     random_characters = ('').join([random.choice(characters) for i in range(6)])
-    return f"{name}-{random_characters}"
+    log(f"Generated unique bucket name: {random_characters}-{name}")
+    return f"{random_characters}-{name}"
 
 if __name__ == '__main__':
     config = load_configuration()
@@ -389,7 +439,6 @@ if __name__ == '__main__':
 
     if not config['security_group']:
         security_group_id = find_matching_sg(vpc_id)
-        log(f"Matching security group found: {security_group_id}")
         if not security_group_id:
             security_group_name = generate_unique_sg_name("NewLaunchWizard", vpc_id)
             config['security_group'] = create_security_group(vpc_id, group_name=security_group_name)
@@ -397,8 +446,19 @@ if __name__ == '__main__':
             config['security_group'] = security_group_id
 
     instance_ip = create_instance(**config)
-    bucket_name = generate_bucket_name(config['bucket_seed'])
+    instance_url = url(instance_ip)
 
-    create_new_bucket(bucket_name)
     if instance_ip:
-        open_website(instance_ip)
+        open_website(instance_url)
+
+    bucket_name = generate_bucket_name(config['bucket_seed'])
+    bucket = create_new_bucket(bucket_name)
+    bucket_url = url(f"{bucket_name}.s3-website-us-east-1.amazonaws.com")
+
+    if bucket:
+        image = get_image(config['image_url'])
+        html = get_html()
+        txt_file = get_txt_file(instance_url, bucket_url)
+        # upload_to_bucket(bucket_name, [image, html, txt_file])
+        log(f"Bucket URL: {bucket_url}", level="info")
+        open_website(bucket_url)
