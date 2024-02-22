@@ -372,40 +372,23 @@ def get_txt_file(ec2_url, s3_url):
         log(f"Failed to write URLs to file: {e}")
     
 @error_handler
-def get_latest_amazon_linux_ami():
+def get_latest_amazon_linux_ami(region='us-east-1'):
     """
-    Retrieves the latest Amazon Linux AMI ID available for use.
+    Retrieves the latest Amazon Linux AMI ID using Systems Manager Parameter Store.
+
+    Parameters:
+    - region: The AWS region to search for the AMI.
+
+    Returns the AMI ID of the latest Amazon Linux AMI.
+    """
+
+    ssm_client = boto3.client('ssm', region_name=region)
+
+    parameter_name = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64'
     
-    Returns the AMI ID.
-    """
-    filters = [
-        {
-            'Name': 'name',
-            'Values': ['amzn2-ami-hvm-*-x86_64-gp2']
-        },
-        {
-            'Name': 'state',
-            'Values': ['available']
-        },
-        {
-            'Name': 'architecture',
-            'Values': ['x86_64']
-        }
-    ]
-
-    # Fetch the latest Amazon Linux AMI
-    amis = ec2_client.describe_images(Owners=['amazon'], Filters=filters)
-
-    # Sort by creation date
-    amis['Images'].sort(key=lambda x: x['CreationDate'], reverse=True)
-
-    if amis['Images']:
-        latest_ami = amis['Images'][0]
-        log(f"Retrieved the latest Amazon Linux AMI ID: {latest_ami['ImageId']}")
-        return latest_ami['ImageId']
-    else:
-        log("Couldn't find the latest Amazon Linux AMI. Try adjusting your filters!")
-        return None
+    response = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
+    log(f"Retrieved latest Amazon Linux AMI ID: {response['Parameter']['Value']}")
+    return response['Parameter']['Value']
 
 def open_website(url, wait_time=5):
     """
