@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 # Standard Library Imports
+import argparse
 import logging
 import requests
 import random
 import string
 import subprocess
 import os
-from pathlib import Path
 import json
 from time import sleep
 import webbrowser
@@ -20,11 +20,15 @@ from botocore.exceptions import ClientError, NoCredentialsError, ParamValidation
 # Logging Configuration
 logging.basicConfig(filename='devops.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Argument Parser Configuration
+parser = argparse.ArgumentParser(description="Manage AWS resources with ease")
+
 # AWS Service Clients
 ec2 = boto3.resource('ec2', region_name='us-east-1')
 s3 = boto3.resource('s3', region_name='us-east-1')
 ec2_client = boto3.client('ec2', region_name='us-east-1')
 s3_client = boto3.client('s3', region_name='us-east-1')
+cloudwatch = boto3.resource('cloudwatch', region_name='us-east-1')
 
 def error_handler(func):
     """
@@ -470,46 +474,104 @@ def ssh_interact(key_name, public_ip, user="ec2-user"):
     except subprocess.CalledProcessError as e:
         log(f"Failed to execute monitoring.sh: {e}", "error")
 
+def running_instances():
+    """
+    Retrieves all running EC2 instances.
+    """
+    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+    for instance in instances:
+        log(f"Instance ID: {instance.id}, Public IP: {instance.public_ip_address}, Date: {instance.launch_time}")
+
+def terminate_instance(instance_id):
+    """
+    Terminates a specific EC2 instance.
+    """
+    instance = ec2.Instance(instance_id)
+    instance.terminate()
+    log(f"Terminating instance {instance.id}...")
+
+def terminate_all_instances():
+    """
+    Terminates all running EC2 instances.
+    """
+    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+    for instance in instances:
+        instance.terminate()
+        log(f"Terminating instance {instance.id}...")
+
+def delete_all_buckets():
+    """
+    Deletes all S3 buckets.
+    """
+    for bucket in s3.buckets.all():
+        bucket.objects.all().delete()
+        bucket.delete()
+        log(f"Deleted bucket {bucket.name}")
+
+def cli():
+    parser.add_argument('--terminate', help="Terminate EC2 instances. Use 'all' to terminate all running instances or specify an instance ID.", nargs='?', const='all', default=None)
+    parser.add_argument('--delete-buckets', help="Delete all S3 buckets", action='store_true')
+
+    return parser.parse_args()
+
 if __name__ == '__main__':
+    # Load the configuration
     config = load_configuration()
-    config['user_data'] = generate_user_data()
 
-    # Get the latest Amazon Linux AMI
-    if not config['ami_id']:
-        config['ami_id'] = get_latest_amazon_linux_ami()
+    # Parse command line arguments
+    args = cli()
 
-    vpc_id = get_default_vpc_id()
-
-    if not vpc_id:
-        log("Unable to retrieve a valid VPC ID, exiting.", "error")
-        exit(1)
-
-    if not config['security_group']:
-        security_group_id = find_matching_sg(vpc_id)
-        if not security_group_id:
-            security_group_name = generate_unique_sg_name("NewLaunchWizard", vpc_id)
-            config['security_group'] = create_security_group(vpc_id, group_name=security_group_name)
+     # Check for terminate flag
+    if args.terminate:
+        if args.terminate == 'all':
+            terminate_all_instances()
         else:
-            config['security_group'] = security_group_id
+            terminate_instance(args.terminate)
+    
+    # Check for delete-buckets flag
+    if args.delete_buckets:
+        delete_all_buckets()
+    
+    # If no flags are provided, proceed with the usual script logic
+    if not any([args.terminate, args.delete_buckets]):
+        config['user_data'] = generate_user_data()
 
-    instance_ip = create_instance(**config)
-    instance_url = url(instance_ip)
+        # Get the latest Amazon Linux AMI
+        if not config['ami_id']:
+            config['ami_id'] = get_latest_amazon_linux_ami()
 
-    if instance_ip:
-        open_website(instance_url)
+        vpc_id = get_default_vpc_id()
 
-    bucket_name = generate_bucket_name(config['bucket_seed'])
-    bucket = create_new_bucket(bucket_name)
-    bucket_url = url(f"{bucket_name}.s3-website-us-east-1.amazonaws.com")
+        if not vpc_id:
+            log("Unable to retrieve a valid VPC ID, exiting.", "error")
+            exit(1)
 
-    if bucket:
-        image = get_image(config['image_url'])
-        html = get_html()
-        txt_file = get_txt_file(instance_url, bucket_url)
-        upload_to_bucket(bucket_name, [image, html, txt_file])
-        log(f"Bucket URL: {bucket_url}", level="info")
-        open_website(bucket_url)
+        if not config['security_group']:
+            security_group_id = find_matching_sg(vpc_id)
+            if not security_group_id:
+                security_group_name = generate_unique_sg_name("NewLaunchWizard", vpc_id)
+                config['security_group'] = create_security_group(vpc_id, group_name=security_group_name)
+            else:
+                config['security_group'] = security_group_id
 
-    ssh_interact(config['key_name'], instance_ip)
+        instance_ip = create_instance(**config)
+        instance_url = url(instance_ip)
 
-    log("Script execution complete.")
+        if instance_ip:
+            open_website(instance_url)
+
+        bucket_name = generate_bucket_name(config['bucket_seed'])
+        bucket = create_new_bucket(bucket_name)
+        bucket_url = url(f"{bucket_name}.s3-website-us-east-1.amazonaws.com")
+
+        if bucket:
+            image = get_image(config['image_url'])
+            html = get_html()
+            txt_file = get_txt_file(instance_url, bucket_url)
+            upload_to_bucket(bucket_name, [image, html, txt_file])
+            log(f"Bucket URL: {bucket_url}", level="info")
+            open_website(bucket_url)
+
+        ssh_interact(config['key_name'], instance_ip)
+
+        log("Script execution complete.")
