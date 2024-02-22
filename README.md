@@ -31,6 +31,10 @@ This Python project automates the provisioning and monitoring of web servers on 
       ```bash
       python3 devops_1.py
       ```
+    - **Help Menu**: Displays the available commands and their usage.
+      ```bash
+      python3 devops_1.py --help or python3 devops_1.py -h
+      ```
     - **List Running EC2 Instances**: Displays all running EC2 instances.
       ```bash
       python3 devops_1.py instances
