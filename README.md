@@ -15,16 +15,37 @@ This Python project automates the provisioning and monitoring of web servers on 
 ## Prerequisites
 
 - Python 3 installed on your local machine ([https://www.python.org/](https://www.python.org/)).
-- Boto3 library installed (`pip install boto3`).
+- Boto3 library installed (`pip3 install boto3`).
+- Google Fire installed (`pip3 install fire`).
 - An AWS account with properly configured credentials (typically in `~/.aws/credentials`).
 - An existing SSH key pair for EC2 access, placed in the same directory as the script.
 
-## Usage
+## CLI Usage
 
-1. Clone this repository to your local machine.
-2. Make sure your AWS credentials are configured correctly.
-3. Place your `.pem` key file in the same directory as the script for SSH access.
-4. Run the Python script with `python3 devops_1.py`.
+1. **Clone the Repository**: Download the project to your local machine.
+2. **Configure AWS Credentials**: Verify that your AWS credentials are correctly set up.
+3. **Prepare the SSH Key**: Place your `.pem` key file in the script's directory for SSH access.
+4. **Execute the Script**: Use the following commands to manage AWS resources and deploy your web server:
+
+    - **Launch the Script without Arguments**: Starts the default automation process.
+      ```bash
+      python3 devops_1.py
+      ```
+    - **List Running EC2 Instances**: Displays all running EC2 instances.
+      ```bash
+      python3 devops_1.py instances
+      ```
+    - **Terminate a Specific Instance**: Terminate an instance by specifying its ID.
+      ```bash
+      python3 devops_1.py terminate <instance_id>
+      ```
+    - **Terminate All Running Instances**: Stops all instances currently running.
+      ```bash
+      python3 devops_1.py terminate_all
+      ```
+    - **Delete All S3 Buckets**: Removes all S3 buckets.
+      ```bash
+      python3 devops_1.py delete_buckets
 
 ## Monitoring
 

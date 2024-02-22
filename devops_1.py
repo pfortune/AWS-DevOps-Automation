@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 # Standard Library Imports
-import argparse
+import sys
 import logging
 import requests
 import random
 import string
 import subprocess
+import fire
 import os
 import json
 from time import sleep
@@ -19,9 +20,6 @@ from botocore.exceptions import ClientError, NoCredentialsError, ParamValidation
 
 # Logging Configuration
 logging.basicConfig(filename='devops.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Argument Parser Configuration
-parser = argparse.ArgumentParser(description="Manage AWS resources with ease")
 
 # AWS Service Clients
 ec2 = boto3.resource('ec2', region_name='us-east-1')
@@ -508,32 +506,22 @@ def delete_all_buckets():
         bucket.delete()
         log(f"Deleted bucket {bucket.name}")
 
-def cli():
-    parser.add_argument('--terminate', help="Terminate EC2 instances. Use 'all' to terminate all running instances or specify an instance ID.", nargs='?', const='all', default=None)
-    parser.add_argument('--delete-buckets', help="Delete all S3 buckets", action='store_true')
-
-    return parser.parse_args()
-
 if __name__ == '__main__':
-    # Load the configuration
-    config = load_configuration()
-
+    cli_result = not None
     # Parse command line arguments
-    args = cli()
+    if len(sys.argv) > 1:
+        cli_result = fire.Fire({
+            "instances": running_instances,
+            "terminate": terminate_instance,
+            "terminate_all": terminate_all_instances,
+            "delete_buckets": delete_all_buckets
+        })
+    
+    # If fire command was executed, cli_result will be None
+    if not cli_result is None:
+        # Load the configuration
+        config = load_configuration()
 
-     # Check for terminate flag
-    if args.terminate:
-        if args.terminate == 'all':
-            terminate_all_instances()
-        else:
-            terminate_instance(args.terminate)
-    
-    # Check for delete-buckets flag
-    if args.delete_buckets:
-        delete_all_buckets()
-    
-    # If no flags are provided, proceed with the usual script logic
-    if not any([args.terminate, args.delete_buckets]):
         config['user_data'] = generate_user_data()
 
         # Get the latest Amazon Linux AMI
