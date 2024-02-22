@@ -10,6 +10,7 @@ import random
 import string
 import subprocess
 import os
+from pathlib import Path
 import json
 from time import sleep
 import webbrowser
@@ -396,6 +397,7 @@ def open_website(url, wait_time=5):
             log(f"Web server not yet running, waiting {wait_time} seconds...")
             sleep(wait_time)
 
+@error_handler
 def upload_to_bucket(bucket_name, files):
     """
     Uploads a list of files to the specified S3 bucket with the correct MIME types.
@@ -447,6 +449,32 @@ def generate_bucket_name(name):
     log(f"Generated unique bucket name: {random_characters}-{name}")
     return f"{random_characters}-{name}"
 
+@error_handler
+def ssh_interact(key_name, public_ip, user="ec2-user"):
+    """
+    Interacts with the SSH server on the EC2 instance to copy and execute monitoring.sh.
+    """
+    pem_file = f"{key_name}.pem"  # Ensure this path is correct and the file has appropriate permissions (chmod 400)
+    
+    log("Copying monitoring.sh to the EC2 instance...")
+    try:
+        subprocess.run(["scp", "-i", pem_file, "-o", "StrictHostKeyChecking=no",
+                        "monitoring.sh", f"{user}@{public_ip}:~/"], check=True)
+        log("monitoring.sh copied successfully.")
+    except subprocess.CalledProcessError as e:
+        log(f"Failed to copy monitoring.sh to the EC2 instance: {e}", "error")
+        return  # Exit if copying fails
+
+    log("Running monitoring.sh on the EC2 instance...")
+    try:
+        subprocess.run(["ssh", "-i", pem_file, "-o", "StrictHostKeyChecking=no",
+                        f"{user}@{public_ip}", "chmod +x ~/monitoring.sh && ~/monitoring.sh"], check=True)
+        log("monitoring.sh executed successfully.")
+    except subprocess.CalledProcessError as e:
+        log(f"Failed to execute monitoring.sh: {e}", "error")
+
+
+
 if __name__ == '__main__':
     config = load_configuration()
     config['user_data'] = generate_user_data()
@@ -486,3 +514,5 @@ if __name__ == '__main__':
         upload_to_bucket(bucket_name, [image, html, txt_file])
         log(f"Bucket URL: {bucket_url}", level="info")
         open_website(bucket_url)
+
+    ssh_interact(config['key_name'], instance_ip)

@@ -129,6 +129,7 @@ env.bak/
 venv.bak/
 index.html
 urls.txt
+*.pem
 
 # Spyder project settings
 .spyderproject
