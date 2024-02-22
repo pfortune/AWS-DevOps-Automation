@@ -28,6 +28,14 @@ ec2_client = boto3.client('ec2', region_name='us-east-1')
 s3_client = boto3.client('s3', region_name='us-east-1')
 cloudwatch = boto3.resource('cloudwatch', region_name='us-east-1')
 
+# ANSI Colour Codes
+COLOURS = {
+    "info": "\033[92m",  # Green
+    "error": "\033[91m",  # Red
+    "warning": "\033[93m",  # Yellow
+    "reset": "\033[0m",  # Reset to default color
+}
+
 def error_handler(func):
     """
     A decorator that handles common AWS errors and exceptions.
@@ -56,11 +64,17 @@ def log(message, level="info"):
     - message: The message to log.
     - level: The log level (info, error).
     """
-    print(message)
+    colour = COLOURS.get(level, COLOURS["reset"])
+    coloured_message = f"{colour}{message}{COLOURS['reset']}"
+    print(coloured_message)
+    print("-------------------")
+
     if level == "info":
         logging.info(message)
     elif level == "error":
         logging.error(message)
+    elif level == "warning":
+        logging.warning(message)
 
 def load_configuration(config_path='config.ini'):
     """
@@ -507,6 +521,7 @@ def ssh_interact(key_name, public_ip, user="ec2-user"):
     except subprocess.CalledProcessError as e:
         log(f"Failed to execute monitoring.sh: {e}", "error")
 
+@error_handler
 def running_instances():
     """
     Retrieves all running EC2 instances.
@@ -515,14 +530,16 @@ def running_instances():
     for instance in instances:
         log(f"Instance ID: {instance.id}, Public IP: {instance.public_ip_address}, Date: {instance.launch_time}")
 
+@error_handler
 def terminate_instance(instance_id):
     """
     Terminates a specific EC2 instance.
     """
     instance = ec2.Instance(instance_id)
     instance.terminate()
-    log(f"Terminating instance {instance.id}...")
+    log(f"Terminating instance {instance.id}...", "warning")
 
+@error_handler
 def terminate_all_instances():
     """
     Terminates all running EC2 instances.
@@ -530,8 +547,9 @@ def terminate_all_instances():
     instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
     for instance in instances:
         instance.terminate()
-        log(f"Terminating instance {instance.id}...")
+        log(f"Terminating instance {instance.id}...", "warning")
 
+@error_handler
 def delete_all_buckets():
     """
     Deletes all S3 buckets.
@@ -540,6 +558,15 @@ def delete_all_buckets():
         bucket.objects.all().delete()
         bucket.delete()
         log(f"Deleted bucket {bucket.name}")
+
+def get_header():
+    print("""
+    +--------------------------------+
+    |                                |
+    |          AWS DevOps            |
+    |                                |
+    +--------------------------------+
+    """)
 
 if __name__ == '__main__':
     """
@@ -557,6 +584,8 @@ if __name__ == '__main__':
     
     # If fire command was executed, cli_result will be None
     if not cli_result is None:
+        get_header()
+
         # Load the configuration
         config = load_configuration()
 
