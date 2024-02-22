@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO: SSH Interactions
 # TODO: Enhance monitoring.sh
 
 # Standard Library Imports
