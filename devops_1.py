@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO: Enhance monitoring.sh
-
 # Standard Library Imports
 import logging
 import requests
@@ -472,8 +470,6 @@ def ssh_interact(key_name, public_ip, user="ec2-user"):
     except subprocess.CalledProcessError as e:
         log(f"Failed to execute monitoring.sh: {e}", "error")
 
-
-
 if __name__ == '__main__':
     config = load_configuration()
     config['user_data'] = generate_user_data()
@@ -515,3 +511,5 @@ if __name__ == '__main__':
         open_website(bucket_url)
 
     ssh_interact(config['key_name'], instance_ip)
+
+    log("Script execution complete.")
