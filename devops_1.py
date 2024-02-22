@@ -87,7 +87,6 @@ TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-meta
 INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
 INSTANCE_TYPE=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
 AVAILABILITY_ZONE=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone)
-# Create a custom index.html
 cat <<EOF > /var/www/html/index.html
 <html>
 <body>
@@ -95,6 +94,8 @@ cat <<EOF > /var/www/html/index.html
 <p>Instance ID: $INSTANCE_ID</p>
 <p>Instance Type: $INSTANCE_TYPE</p>
 <p>Availability Zone: $AVAILABILITY_ZONE</p>
+<hr>
+<img src="https://cataas.com/cat/cute" alt="Cute cat" style="height: 500px;">
 </body>
 </html>
 EOF
@@ -249,7 +250,9 @@ def get_image(image_url):
     if response.status_code == 200:
         with open("logo.png", "wb") as f:
             f.write(response.content)
+
         log("Image downloaded successfully.")
+        return "logo.png"
     else:
         log("Failed to download image.")
 
@@ -317,7 +320,7 @@ def get_html():
 </head>
 <body>
     <h1>Welcome to my DevOps Website</h1>
-    <img src="logo.png" alt="Logo" style="width: 200px; height: 200px;">
+    <img src="logo.png" alt="Logo">
 </body>
 </html>
 """
@@ -466,7 +469,7 @@ if __name__ == '__main__':
     vpc_id = get_default_vpc_id()
 
     if not vpc_id:
-        log("Unable to retrieve a valid VPC ID, exiting.")
+        log("Unable to retrieve a valid VPC ID, exiting.", "error")
         exit(1)
 
     if not config['security_group']:
@@ -489,6 +492,7 @@ if __name__ == '__main__':
 
     if bucket:
         image = get_image(config['image_url'])
+        log(f"Image: {image}")
         html = get_html()
         txt_file = get_txt_file(instance_url, bucket_url)
         upload_to_bucket(bucket_name, [image, html, txt_file])
