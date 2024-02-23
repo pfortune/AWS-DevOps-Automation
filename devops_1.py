@@ -1,73 +1,20 @@
 #!/usr/bin/env python3
 
 # Standard Library Imports
-import sys
-import logging
 import requests
 import random
 import string
 import subprocess
-import fire
 import os
 import json
 from time import sleep
 import webbrowser
 import configparser
+from error_logging import log, error_handler
+import cli
 
 # Third Party Imports
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError, ParamValidationError
-
-# Logging Configuration
-logging.basicConfig(filename='devops.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# ANSI Colour Codes
-COLOURS = {
-    "info": "\033[92m",  # Green
-    "error": "\033[91m",  # Red
-    "warning": "\033[93m",  # Yellow
-    "reset": "\033[0m",  # Reset to default color
-}
-
-def error_handler(func):
-    """
-    A decorator that handles common AWS errors and exceptions.
-    """
-    def _Decorator(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except NoCredentialsError:
-            log("No AWS credentials found. Please configure your credentials.", "error")
-            exit(1)
-        except ClientError as e:
-            log(f"An error occurred: {e}", "error")
-        except ParamValidationError as e:
-            log(f"Invalid parameters: {e}", "error")
-        except TypeError as e:
-            log(f"Invalid type: {e}", "error")
-        except ImportError as e:
-            log(f"Import error: {e}", "error")
-    return _Decorator
-
-def log(message, level="info"):
-    """
-    Logs a message to the console and a log file.
-
-    Parameters:
-    - message: The message to log.
-    - level: The log level (info, error).
-    """
-    colour = COLOURS.get(level, COLOURS["reset"])
-    coloured_message = f"{colour}{message}{COLOURS['reset']}"
-    print(coloured_message)
-    print("-------------------")
-
-    if level == "info":
-        logging.info(message)
-    elif level == "error":
-        logging.error(message)
-    elif level == "warning":
-        logging.warning(message)
 
 def load_configuration(config_path='config.ini'):
     """
@@ -151,6 +98,14 @@ def create_instance(**config):
                     {
                         'Key': 'Name',
                         'Value': config['instance_name']
+                    },
+                    {
+                        'Key': 'Owner',
+                        'Value': 'DevOps'
+                    },
+                    {
+                        'Key': 'Environment',
+                        'Value': 'Development'
                     }
                 ]
             },
@@ -497,44 +452,6 @@ def ssh_interact(key_name, public_ip, user="ec2-user"):
     except subprocess.CalledProcessError as e:
         log(f"Failed to execute monitoring.sh: {e}", "error")
 
-@error_handler
-def running_instances():
-    """
-    Retrieves all running EC2 instances.
-    """
-    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
-    for instance in instances:
-        log(f"Instance ID: {instance.id}, Public IP: {instance.public_ip_address}, Date: {instance.launch_time}")
-
-@error_handler
-def terminate_instance(instance_id):
-    """
-    Terminates a specific EC2 instance.
-    """
-    instance = ec2.Instance(instance_id)
-    instance.terminate()
-    log(f"Terminating instance {instance.id}...", "warning")
-
-@error_handler
-def terminate_all_instances():
-    """
-    Terminates all running EC2 instances.
-    """
-    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
-    for instance in instances:
-        instance.terminate()
-        log(f"Terminating instance {instance.id}...", "warning")
-
-@error_handler
-def delete_all_buckets():
-    """
-    Deletes all S3 buckets.
-    """
-    for bucket in s3.buckets.all():
-        bucket.objects.all().delete()
-        bucket.delete()
-        log(f"Deleted bucket {bucket.name}", "warning")
-
 def get_header():
     print("""
     +--------------------------------+
@@ -548,24 +465,23 @@ if __name__ == '__main__':
     """
     Main entry point for the script.
     """
-    cli_result = not None
-    # Parse command line arguments
-    if len(sys.argv) > 1:
-        cli_result = fire.Fire({
-            "instances": running_instances,
-            "terminate": terminate_instance,
-            "terminate_all": terminate_all_instances,
-            "delete_buckets": delete_all_buckets
-        })
+    cli_used = cli.main()
     
-    # If fire command was executed, cli_result will be None
-    if not cli_result is None:
+    # If cli was not used, the following code will run
+    if not cli_used:
         get_header()
 
         # Load the configuration
         config = load_configuration()
 
+        if not config['key_name']:
+            log("No pem key name specified, exiting.", "error")
+            exit(1)
+
         # AWS Service Clients
+        if not config['region']:
+            config['region'] = "eu-east-1"
+
         ec2 = boto3.resource('ec2', region_name=config['region'])
         s3 = boto3.resource('s3', region_name=config['region'])
         ec2_client = boto3.client('ec2', region_name=config['region'])
