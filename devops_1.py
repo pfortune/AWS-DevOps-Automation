@@ -15,6 +15,7 @@ import cli
 
 # Third Party Imports
 import boto3
+from botocore.exceptions import ClientError
 
 def load_configuration(config_path='config.ini'):
     """
@@ -329,11 +330,9 @@ def get_latest_amazon_linux_ami(region):
 
     Returns the AMI ID of the latest Amazon Linux AMI.
     """
-
     ssm_client = boto3.client('ssm', region_name=region)
-
     parameter_name = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64'
-    
+
     response = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
     log(f"Retrieved latest Amazon Linux AMI ID: {response['Parameter']['Value']}")
     return response['Parameter']['Value']
@@ -452,15 +451,6 @@ def ssh_interact(key_name, public_ip, user="ec2-user"):
     except subprocess.CalledProcessError as e:
         log(f"Failed to execute monitoring.sh: {e}", "error")
 
-def get_header():
-    print("""
-    +--------------------------------+
-    |                                |
-    |          AWS DevOps            |
-    |                                |
-    +--------------------------------+
-    """)
-
 if __name__ == '__main__':
     """
     Main entry point for the script.
@@ -469,7 +459,7 @@ if __name__ == '__main__':
     
     # If cli was not used, the following code will run
     if not cli_used:
-        get_header()
+        cli.header()
 
         # Load the configuration
         config = load_configuration()

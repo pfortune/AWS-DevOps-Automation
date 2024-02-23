@@ -9,6 +9,15 @@ cloudwatch = boto3.client('cloudwatch')
 ec2 = boto3.resource('ec2')
 s3 = boto3.resource('s3')
 
+def header():
+    print("""
+    +--------------------------------+
+    |                                |
+    |          AWS DevOps            |
+    |                                |
+    +--------------------------------+
+    """)
+
 @error_handler
 def running_instances():
     """
@@ -129,7 +138,6 @@ def get_metric_data(instance_id, metric_name, period='1h'):
     else:
         log(f"No data available for {metric_name} in the last {period}.")
 
-
 @error_handler
 def create_alarm(alarm_name, metric_name, instance_id, threshold, comparison_operator='GreaterThanThreshold', evaluation_periods=1, period=300, statistic='Average'):
     """
@@ -176,8 +184,8 @@ def cloudwatch_command(subcommand, **kwargs):
         list_metrics --instance_id <instance_id>
             List available CloudWatch metrics for a specified EC2 instance.
 
-        get_metric_data --instance_id <instance_id> --metric_name <metric_name>
-            Retrieve and display specific metric data for an EC2 instance.
+        get_metric_data --instance_id <instance_id> --metric_name <metric_name> [--period <1h|8h|24h>]
+            Retrieve and display specific metric data for an EC2 instance for the last 1 hour, 8 hours, or 24 hours.
             
         create_alarm --alarm_name <name> --metric_name <metric_name> --instance_id <instance_id> --threshold <threshold> [...additional flags]
             Create a CloudWatch alarm based on specified parameters.
