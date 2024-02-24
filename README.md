@@ -5,12 +5,14 @@ This Python project automates the provisioning and monitoring of web servers on 
 ## Project Overview
 
 - Utilises Python 3 and the Boto3 library to interact with AWS services.
-- Automatically creates and launches an Amazon Linux 2023 EC2 nano instance.
+- Automates the launch of an Amazon Linux (latest available) EC2 nano instance.
 - Configures security groups and tags for easy management and security.
 - Installs and starts a web server (Apache by default) that displays instance metadata.
-- Sets up an S3 bucket for static website hosting, uploads content, and makes a website accessible.
+- Configures an S3 bucket for static website hosting, enabling content uploads and public access.
 - Opens a browser to show the newly deployed EC2 instance and S3 static website URLs.
-- Includes a `monitoring.sh` script for enhanced monitoring of the EC2 instance.
+- Facilitates enhanced EC2 instance monitoring with an included `monitoring.sh` script and SSH-based automation.
+- Integrates with AWS CloudWatch to list metrics, retrieve metric data, and manage alarms.
+- Utilises a configuration file (config.ini) for customisation.
 
 ## Prerequisites
 
@@ -22,35 +24,31 @@ This Python project automates the provisioning and monitoring of web servers on 
 
 ## CLI Usage
 
-1. **Clone the Repository**: Download the project to your local machine.
-2. **Configure AWS Credentials**: Verify that your AWS credentials are correctly set up.
-3. **Prepare the SSH Key**: Place your `.pem` key file in the script's directory for SSH access.
-4. **Execute the Script**: Use the following commands to manage AWS resources and deploy your web server:
+1.  **Clone the Repository**: Download the project to your local machine.
+2.  **Configure AWS Credentials**: Verify that your AWS credentials are correctly set up.
+3.  **Prepare the SSH Key**: Place your `.pem` key file in the script's directory for SSH access.
+4.  **Execute the Script**: Use the following commands to manage AWS resources, deploy your web server, and monitor resources:
 
-    - **Launch the Script without Arguments**: Starts the default automation process.
-      ```bash
-      python3 devops_1.py
-      ```
-    - **Help Menu**: Displays the available commands and their usage.
-      ```bash
-      python3 devops_1.py --help or python3 devops_1.py -h
-      ```
-    - **List Running EC2 Instances**: Displays all running EC2 instances.
-      ```bash
-      python3 devops_1.py instances
-      ```
-    - **Terminate a Specific Instance**: Terminate an instance by specifying its ID.
-      ```bash
-      python3 devops_1.py terminate <instance_id>
-      ```
-    - **Terminate All Running Instances**: Stops all instances currently running.
-      ```bash
-      python3 devops_1.py terminate_all
-      ```
-    - **Delete All S3 Buckets**: Removes all S3 buckets.
-      ```bash
-      python3 devops_1.py delete_buckets
+**AWS Management Commands:**
 
+*   `python3 devops_1.py instances` : Lists running EC2 instances.
+*   `python3 devops_1.py terminate <instance_id>` :  Terminates a specific EC2 instance.
+*   `python3 devops_1.py terminate_all` : Terminates all running EC2 instances.
+*   `python3 devops_1.py buckets` : Lists all S3 buckets.
+*   `python3 devops_1.py delete_buckets` : Deletes all S3 buckets.
+
+**CloudWatch Commands:**
+
+*   `python3 devops_1.py cloudwatch list_metrics --instance_id <instance_id>` : Lists available CloudWatch metrics for an instance.
+*   `python3 devops_1.py cloudwatch get_metric_data --instance_id <instance_id> --metric_name <metric_name> [--period <1h|8h|24h>]`: Retrieves specific metric data (default period: 1 hour).
+*  `python3 devops_1.py cloudwatch create_alarm --alarm_name <name> --metric_name <metric_name> --instance_id <instance_id> --threshold <threshold> [...additional flags]` : Creates a CloudWatch alarm.
+*  `python3 devops_1.py cloudwatch delete_alarm --alarm_name <name>` : Deletes a CloudWatch alarm.
+*  `python3 devops_1.py cloudwatch metrics --instance_id <instance_id>` : Retrieves and displays basic CloudWatch metrics for a specified EC2 instance.
+
+**Example:**
+
+```bash
+python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name CPUUtilization --period 8h
 ## Monitoring
 
 To leverage the included `monitoring.sh` script for system monitoring on the EC2 instance:

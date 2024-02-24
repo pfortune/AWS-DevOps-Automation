@@ -476,7 +476,6 @@ if __name__ == '__main__':
         s3 = boto3.resource('s3', region_name=config['region'])
         ec2_client = boto3.client('ec2', region_name=config['region'])
         s3_client = boto3.client('s3', region_name=config['region'])
-        cloudwatch = boto3.resource('cloudwatch', region_name=config['region'])
 
         config['user_data'] = generate_user_data()
 
