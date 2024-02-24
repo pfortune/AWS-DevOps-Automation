@@ -49,6 +49,8 @@ This Python project automates the provisioning and monitoring of web servers on 
 
 ```bash
 python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name CPUUtilization --period 8h
+```
+
 ## Monitoring
 
 To leverage the included `monitoring.sh` script for system monitoring on the EC2 instance:
