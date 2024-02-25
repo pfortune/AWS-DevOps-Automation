@@ -5,14 +5,15 @@ This Python project automates the provisioning and monitoring of web servers on 
 ## Project Overview
 
 - Utilises Python 3 and the Boto3 library to interact with AWS services.
-- Automates the launch of an Amazon Linux (latest available) EC2 nano instance.
+- Automates the launch of an Amazon Linux EC2 nano instance, automatically determining the latest AMI using AWS Systems Manager Parameter Store.
 - Configures security groups and tags for easy management and security.
-- Installs and starts a web server (Apache by default) that displays instance metadata.
+- Installs and starts a web server to display instance metadata (with potential customization).
 - Configures an S3 bucket for static website hosting, enabling content uploads and public access.
 - Opens a browser to show the newly deployed EC2 instance and S3 static website URLs.
-- Facilitates enhanced EC2 instance monitoring with an included `monitoring.sh` script and SSH-based automation.
-- Integrates with AWS CloudWatch to list metrics, retrieve metric data, and manage alarms.
+- Facilitates enhanced EC2 instance monitoring with an included `monitoring.sh` script and SSH-based automation. 
+- Integrates with AWS CloudWatch to list metrics, retrieve granular metric data over various time periods, and manage alarms.
 - Utilises a configuration file (config.ini) for customisation.
+- Includes error handling to improve robustness. 
 
 ## Prerequisites
 
@@ -22,34 +23,52 @@ This Python project automates the provisioning and monitoring of web servers on 
 - An AWS account with properly configured credentials (typically in `~/.aws/credentials`).
 - An existing SSH key pair for EC2 access, placed in the same directory as the script.
 
-## CLI Usage
+## Usage
 
-1.  **Clone the Repository**: Download the project to your local machine.
-2.  **Configure AWS Credentials**: Verify that your AWS credentials are correctly set up.
-3.  **Prepare the SSH Key**: Place your `.pem` key file in the script's directory for SSH access.
-4.  **Execute the Script**: Use the following commands to manage AWS resources, deploy your web server, and monitor resources:
+1. **Clone the Repository**: Download the project to your local machine.
 
-**AWS Management Commands:**
+2. **Configure AWS Credentials**: Verify that your AWS credentials are correctly set up.
 
-*   `python3 devops_1.py instances` : Lists running EC2 instances.
-*   `python3 devops_1.py terminate <instance_id>` :  Terminates a specific EC2 instance.
-*   `python3 devops_1.py terminate_all` : Terminates all running EC2 instances.
-*   `python3 devops_1.py buckets` : Lists all S3 buckets.
-*   `python3 devops_1.py delete_buckets` : Deletes all S3 buckets.
+3. **Customise the Configuration**: Modify the `config.ini` file to customise the script's behaviour.  Before executing most commands, ensure you've updated `config.ini` with your AWS key name, region, and other desired settings.
 
-**CloudWatch Commands:**
+4. **Prepare the SSH Key**: Specify the path to your SSH key file in the `config.ini` for SSH access.
 
-*   `python3 devops_1.py cloudwatch list_metrics --instance_id <instance_id>` : Lists available CloudWatch metrics for an instance.
-*   `python3 devops_1.py cloudwatch get_metric_data --instance_id <instance_id> --metric_name <metric_name> [--period <1h|8h|24h>]`: Retrieves specific metric data (default period: 1 hour).
-*  `python3 devops_1.py cloudwatch create_alarm --alarm_name <name> --metric_name <metric_name> --instance_id <instance_id> --threshold <threshold> [...additional flags]` : Creates a CloudWatch alarm.
-*  `python3 devops_1.py cloudwatch delete_alarm --alarm_name <name>` : Deletes a CloudWatch alarm.
-*  `python3 devops_1.py cloudwatch metrics --instance_id <instance_id>` : Retrieves and displays basic CloudWatch metrics for a specified EC2 instance.
+5. **Getting Help:** To view available commands and get help with a specific command, use the `--help` or `-h` flag. For example: `python3 devops_1.py --help`
 
-**Example:**
+6. **Deployment**: To launch an EC2 instance, configure an S3 bucket, and deploy the web server, execute `python3 devops_1.py` with no arguments.
 
-```bash
-python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name CPUUtilization --period 8h
-```
+**AWS Resource Management**
+
+* **AWS Management Commands:**
+    * `python3 devops_1.py instances`
+    * `python3 devops_1.py terminate <instance_id>` 
+    * `python3 devops_1.py terminate_all` 
+    * `python3 devops_1.py buckets` 
+    * `python3 devops_1.py delete_buckets` 
+
+* **CloudWatch Commands:**
+  * `python3 devops_1.py cloudwatch list_metrics --instance_id <instance_id>` 
+  * `python3 devops_1.py cloudwatch get_metric_data --instance_id <instance_id> --metric_name <metric_name> [--period <1h|8h|24h>]`
+  * `python3 devops_1.py cloudwatch create_alarm --alarm_name <name> --metric_name <metric_name> --instance_id <instance_id> --threshold <threshold> [--comparison_operator <operator>] [--evaluation_periods <number>] [--period <seconds>] [--statistic <statistic>]`   
+  * `python3 devops_1.py cloudwatch delete_alarm --alarm_name <name>` 
+  * `python3 devops_1.py cloudwatch metrics --instance_id <instance_id>` 
+
+**Examples**
+
+* **Retrieve 24 hours of network traffic data:** 
+    ```bash
+    python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name NetworkIn --period 24h
+    ```
+
+* **Check disk read operations over the past hour:**
+    ```bash
+    python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name DiskReadOps --period 1h
+    ```
+
+* **Create an alarm that triggers if CPU usage exceeds 90%:**
+    ```bash
+    python3 devops_1.py cloudwatch create_alarm --alarm_name HighCPUAlert --metric_name CPUUtilization --instance_id i-0123456789 --threshold 90
+    ```
 
 ## Monitoring
 
