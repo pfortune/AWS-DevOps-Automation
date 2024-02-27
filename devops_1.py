@@ -464,14 +464,28 @@ if __name__ == '__main__':
         # Load the configuration
         config = load_configuration()
 
+        # Check if a key name is specified, exit if not
         if not config['key_name']:
             log("No pem key name specified, exiting.", "error")
             exit(1)
 
-        # AWS Service Clients
+        # Set the instance type to a default value if not specified
+        if not config['instance_type']:
+            config['instance_type'] = "t2.nano"
+        
+        # Set the instance name to a default value if not specified
+        if not config['instance_name']:
+            config['instance_name'] = "Web Server"
+
+        # Set the region to a default value if not specified
         if not config['region']:
             config['region'] = "eu-east-1"
 
+        # Set the bucket seed to a default value if not specified
+        if not config['bucket_seed']:
+            config['bucket_seed'] = "devops-bucket"
+
+        # AWS Service Clients
         ec2 = boto3.resource('ec2', region_name=config['region'])
         s3 = boto3.resource('s3', region_name=config['region'])
         ec2_client = boto3.client('ec2', region_name=config['region'])
