@@ -29,13 +29,13 @@ This Python project automates the provisioning and monitoring of web servers on 
 
 2. **Configure AWS Credentials**: Verify that your AWS credentials are correctly set up.
 
-3. **Customise the Configuration**: Modify the `config.ini` file to customise the script's behaviour.  Before executing most commands, ensure you've updated `config.ini` with your AWS key name, region, and other desired settings.
+3. **Customise the Configuration**: Modify the `config.ini` file to customise the script's behaviour.  Before executing most commands, ensure you've updated `config.ini` with your AWS PEM key name and other desired settings.
 
-4. **Prepare the SSH Key**: Specify the path to your SSH key file in the `config.ini` for SSH access.
+4. **Getting Help:** To view available commands and get help with a specific command, use the `--help` or `-h` flag. For example: `python3 devops_1.py --help`
 
-5. **Getting Help:** To view available commands and get help with a specific command, use the `--help` or `-h` flag. For example: `python3 devops_1.py --help`
+5. **Deployment**: To launch an EC2 instance, configure an S3 bucket, and deploy the web server, execute `python3 devops_1.py` with no arguments.
 
-6. **Deployment**: To launch an EC2 instance, configure an S3 bucket, and deploy the web server, execute `python3 devops_1.py` with no arguments.
+6. **CLI**: To interact with AWS resources using the command-line interface, try some of the commands below.
 
 **AWS Resource Management**
 
@@ -47,27 +47,34 @@ This Python project automates the provisioning and monitoring of web servers on 
     * `python3 devops_1.py delete_buckets` 
 
 * **CloudWatch Commands:**
+  * `python3 devops_1.py cloudwatch --help`
   * `python3 devops_1.py cloudwatch list_metrics --instance_id <instance_id>` 
   * `python3 devops_1.py cloudwatch get_metric_data --instance_id <instance_id> --metric_name <metric_name> [--period <1h|8h|24h>]`
   * `python3 devops_1.py cloudwatch create_alarm --alarm_name <name> --metric_name <metric_name> --instance_id <instance_id> --threshold <threshold> [--comparison_operator <operator>] [--evaluation_periods <number>] [--period <seconds>] [--statistic <statistic>]`   
+  * `python3 devops_1.py cloudwatch list_alarms`
   * `python3 devops_1.py cloudwatch delete_alarm --alarm_name <name>` 
   * `python3 devops_1.py cloudwatch metrics --instance_id <instance_id>` 
 
 **Examples**
 
+* **Retrieve an overview core metrics for an instance:**
+    ```bash
+    python3 devops_1.py cloudwatch metrics --instance_id i-0c86e59079b90dd57
+    ```
+
 * **Retrieve 24 hours of network traffic data:** 
     ```bash
-    python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name NetworkIn --period 24h
+    python3 devops_1.py cloudwatch get_metric_data --instance_id i-0c86e59079b90dd57 --metric_name NetworkIn --period 24h
     ```
 
 * **Check disk read operations over the past hour:**
     ```bash
-    python3 devops_1.py cloudwatch get_metric_data --instance_id i-0123456789 --metric_name DiskReadOps --period 1h
+    python3 devops_1.py cloudwatch get_metric_data --instance_id i-0c86e59079b90dd57 --metric_name DiskReadOps --period 1h
     ```
 
 * **Create an alarm that triggers if CPU usage exceeds 90%:**
     ```bash
-    python3 devops_1.py cloudwatch create_alarm --alarm_name HighCPUAlert --metric_name CPUUtilization --instance_id i-0123456789 --threshold 90
+    python3 devops_1.py cloudwatch create_alarm --alarm_name HighCPUAlert --metric_name CPUUtilization --instance_id i-0c86e59079b90dd57 --threshold 90
     ```
 
 ## Monitoring

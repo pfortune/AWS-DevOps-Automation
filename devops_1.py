@@ -69,7 +69,7 @@ EOF
     return user_data
 
 @error_handler
-def create_instance(**config):
+def create_instance(**param):
     """
     Creates an EC2 instance with specified parameters.
     
@@ -85,20 +85,20 @@ def create_instance(**config):
     Returns the public IP address of the created instance.
     """
     created_instances = ec2.create_instances(
-        ImageId=config['ami_id'],
-        InstanceType=config['instance_type'],
+        ImageId=param['ami_id'],
+        InstanceType=param['instance_type'],
         MinCount=1,
         MaxCount=1,
-        KeyName=config['key_name'],
-        SecurityGroupIds=[config['security_group']],
-        UserData=config['user_data'],
+        KeyName=param['key_name'],
+        SecurityGroupIds=[param['security_group']],
+        UserData=param['user_data'],
         TagSpecifications=[
             {
                 'ResourceType': 'instance',
                 'Tags': [
                     {
                         'Key': 'Name',
-                        'Value': config['instance_name']
+                        'Value': param['instance_name']
                     },
                     {
                         'Key': 'Owner',
@@ -455,12 +455,12 @@ if __name__ == '__main__':
     """
     Main entry point for the script.
     """
+    cli.header()
+
     cli_used = cli.main()
     
     # If cli was not used, the following code will run
     if not cli_used:
-        cli.header()
-
         # Load the configuration
         config = load_configuration()
 

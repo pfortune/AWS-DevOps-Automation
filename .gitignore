@@ -130,6 +130,10 @@ venv.bak/
 index.html
 urls.txt
 *.pem
+Scripts/
+activate/
+get-pip.py
+pyvenv.cfg
 
 # Spyder project settings
 .spyderproject

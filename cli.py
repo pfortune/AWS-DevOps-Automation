@@ -4,6 +4,7 @@ import sys
 from botocore.exceptions import ClientError
 from error_logging import error_handler, log
 import datetime
+import re
 
 cloudwatch = boto3.client('cloudwatch')
 ec2 = boto3.resource('ec2')
@@ -173,6 +174,20 @@ def delete_alarm(alarm_name):
     )
     log(f"Alarm {alarm_name} deleted.")
 
+@error_handler
+def list_alarms():
+    """
+    List all CloudWatch alarms.
+    """
+    alarms = cloudwatch.describe_alarms()
+    for alarm in alarms['MetricAlarms']:
+        log(f"""
+    Alarm: {alarm['AlarmName']}
+    State: {alarm['StateValue']}
+    Reason: {alarm['StateReason']}
+    Instance: {alarm['Dimensions'][0]['Value']}
+ """)
+
 def cloudwatch_command(subcommand, **kwargs):
     """
     Route CloudWatch CLI commands to the appropriate function.
@@ -192,6 +207,9 @@ def cloudwatch_command(subcommand, **kwargs):
             
         delete_alarm --alarm_name <name>
             Delete a specified CloudWatch alarm.
+
+        list_alarms
+            List all CloudWatch alarms.
     """
     if subcommand == 'list_metrics':
         list_metrics(**kwargs)
@@ -201,6 +219,8 @@ def cloudwatch_command(subcommand, **kwargs):
         create_alarm(**kwargs)
     elif subcommand == 'delete_alarm':
         delete_alarm(**kwargs)
+    elif subcommand == 'list_alarms':
+        list_alarms()
     elif subcommand == 'metrics':
         cloudwatch_metrics(**kwargs)
     else:
@@ -213,7 +233,7 @@ def cloudwatch_metrics(instance_id):
     Formats and prints a summary of the metrics.
     """
     cloudwatch = boto3.client('cloudwatch')
-    metrics = ['CPUUtilization', 'DiskReadOps', 'DiskWriteOps']  # Example metrics
+    metrics = ['CPUUtilization', 'DiskReadOps', 'DiskWriteOps', 'NetworkPacketsOut', 'NetworkIn', 'NetworkOut']  # Example metrics
     log(f"CloudWatch Metrics for instance: {instance_id}")
     for metric in metrics:
         response = cloudwatch.get_metric_statistics(
@@ -227,13 +247,14 @@ def cloudwatch_metrics(instance_id):
         )
         if response['Datapoints']:
             # Sort the datapoints by Timestamp to get the latest
+            format_metric = re.sub(r'([a-z])([A-Z])', r'\1 \2', metric)
             latest_datapoint = sorted(response['Datapoints'], key=lambda x: x['Timestamp'], reverse=True)[0]
-            log(f"{metric}: Average {latest_datapoint['Average']} {latest_datapoint['Unit']} (Last hour)")
+            log(f"{format_metric}: Average {latest_datapoint['Average']} {latest_datapoint['Unit']} (Last hour)")
         else:
-            log(f"{metric}: No data available", "warning")
+            log(f"{format_metric}: No data available", "warning")
 
 def main():
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1:        
         fire.Fire({
             "instances": running_instances,
             "terminate": terminate_instance,
