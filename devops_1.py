@@ -18,6 +18,7 @@ import cli
 import boto3
 from botocore.exceptions import ClientError
 
+@error_handler
 def load_configuration(config_path='config.ini'):
     """
     Loads the configuration from the specified file.
@@ -34,6 +35,7 @@ def load_configuration(config_path='config.ini'):
 
     return config['DEFAULT']
 
+@error_handler
 def generate_user_data():
     """
     Generates a user data script for EC2 instance initialization.
@@ -275,6 +277,7 @@ def create_new_bucket(bucket_name, region=None):
 
     return True
 
+@error_handler
 def get_html():
     """
     Generates an HTML page to be uploaded to the S3 bucket.
@@ -301,6 +304,7 @@ def get_html():
     except Exception as e:
         log(f"Failed to generate HTML page: {e}", "error")
 
+@error_handler
 def get_txt_file(ec2_url, s3_url):
     """
     Writes a list of URLs to a text file.
@@ -338,6 +342,7 @@ def get_latest_amazon_linux_ami(region):
     log(f"Retrieved latest Amazon Linux AMI ID: {response['Parameter']['Value']}")
     return response['Parameter']['Value']
 
+@error_handler
 def open_website(url, wait_time=5):
     """
     Opens a web browser to the specified url.
@@ -396,6 +401,7 @@ def upload_to_bucket(bucket_name, files):
             except ClientError as e:
                 log(f"Failed to upload {file_name} to {bucket_name}: {e}", "error")
 
+@error_handler
 def url(string):
     """
     Creates a URL from a string.
@@ -407,6 +413,7 @@ def url(string):
     """
     return f"http://{string}"
 
+@error_handler
 def generate_bucket_name(name):
     """
     Generates a unique name for an S3 bucket by appending random characters to the base name.

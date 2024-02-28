@@ -14,6 +14,13 @@ COLOURS = {
 def error_handler(func):
     """
     A decorator that handles common AWS errors and exceptions.
+    Also logs the start and end of the function.
+
+    Parameters:
+    - func: The function to decorate.
+
+    Returns:
+    - The decorated function.
     """
     def _Decorator(*args, **kwargs):
         log(f">> Running function {func.__name__} <<", "debug")
