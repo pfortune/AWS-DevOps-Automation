@@ -7,6 +7,7 @@ import string
 import subprocess
 import os
 import json
+import stat
 from time import sleep
 import webbrowser
 import configparser
@@ -420,7 +421,6 @@ def generate_bucket_name(name):
     log(f"Generated unique bucket name: {random_characters}-{name}")
     return f"{random_characters}-{name}"
 
-#check if credentials at ./aws/credentials throw an ExpiredTokenException
 @error_handler
 def check_credentials():
     """
@@ -435,6 +435,36 @@ def check_credentials():
     except ClientError as e:
         log(f"AWS credentials are invalid: Update your credentials with the latest details.", "error")
         exit(1)
+
+@error_handler
+def check_pem_key(key_name):
+    """
+    Checks if the pem key file exists and has the correct permissions.
+
+    Parameters:
+    - key_name: The name of the SSH key pair.
+
+    Exits the script if the pem key file is not found or has incorrect permissions.
+    """
+    pem_file = f"{key_name}.pem"
+
+    # Check if the file exists
+    log(f"Checking for pem key file: {pem_file}")
+    if not os.path.exists(pem_file):
+        log(f"Pem key file {pem_file} not found.", "error")
+        exit(1)
+
+    # Check if the file has the correct permissions
+    current_permissions = stat.S_IMODE(os.lstat(pem_file).st_mode)
+    desired_permissions = stat.S_IRUSR | stat.S_IWUSR  # This is 0600
+
+    # Compare current permissions with desired permissions
+    if current_permissions != desired_permissions:
+        log(f"Updating permissions of {pem_file} to 0600...")
+        os.chmod(pem_file, desired_permissions)
+        log("Permissions updated.")
+    else:
+        log(f"Permissions of {pem_file} are already set correctly.")
 
 @error_handler
 def ssh_interact(key_name, public_ip, user="ec2-user"):
@@ -486,6 +516,9 @@ if __name__ == '__main__':
         if not config['key_name']:
             log("No pem key name specified, exiting.", "error")
             exit(1)
+
+        # Check if the pem key file exists and has the correct permissions
+        check_pem_key(config['key_name'])
 
         # Set the instance type to a default value if not specified
         if not config['instance_type']:
