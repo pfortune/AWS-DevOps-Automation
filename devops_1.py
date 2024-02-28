@@ -420,6 +420,22 @@ def generate_bucket_name(name):
     log(f"Generated unique bucket name: {random_characters}-{name}")
     return f"{random_characters}-{name}"
 
+#check if credentials at ./aws/credentials throw an ExpiredTokenException
+@error_handler
+def check_credentials():
+    """
+    Checks if the AWS credentials are valid and not expired.
+    """
+    log("Checking AWS credentials...")
+    try:
+        session = boto3.Session()
+        sts = session.client('sts')
+        sts.get_caller_identity()
+        log("AWS credentials are valid.")
+    except ClientError as e:
+        log(f"AWS credentials are invalid: Update your credentials with the latest details.", "error")
+        exit(1)
+
 @error_handler
 def ssh_interact(key_name, public_ip, user="ec2-user"):
     """
@@ -456,6 +472,8 @@ if __name__ == '__main__':
     Main entry point for the script.
     """
     cli.header()
+
+    check_credentials()
 
     cli_used = cli.main()
     

@@ -16,6 +16,7 @@ def error_handler(func):
     A decorator that handles common AWS errors and exceptions.
     """
     def _Decorator(*args, **kwargs):
+        log(f">> Running function {func.__name__} <<", "debug")
         try:
             return func(*args, **kwargs)
         except NoCredentialsError:
@@ -29,6 +30,10 @@ def error_handler(func):
             log(f"Invalid type: {e}", "error")
         except ImportError as e:
             log(f"Import error: {e}", "error")
+        except Exception as e:
+            log(f"An error occurred: {e}", "error")
+        
+        log(f">> Finished function {func.__name__} <<", "debug")
     return _Decorator
 
 def log(message, level="info"):
@@ -39,10 +44,11 @@ def log(message, level="info"):
     - message: The message to log.
     - level: The log level (info, error, warning).
     """
-    colour = COLOURS.get(level, COLOURS["reset"])
-    coloured_message = f"{colour}{message}{COLOURS['reset']}"
-    print(coloured_message)
-    print("-------------------")
+    if not level == "debug":
+        colour = COLOURS.get(level, COLOURS["reset"])
+        coloured_message = f"{colour}{message}{COLOURS['reset']}"
+        print(coloured_message)
+        print("-------------------")
 
     if level == "info":
         logging.info(message)
@@ -50,3 +56,5 @@ def log(message, level="info"):
         logging.error(message)
     elif level == "warning":
         logging.warning(message)
+    elif level == "debug":
+        logging.info(message)
