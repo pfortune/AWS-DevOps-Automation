@@ -32,8 +32,8 @@ def error_handler(func):
             log(f"Import error: {e}", "error")
         except Exception as e:
             log(f"An error occurred: {e}", "error")
-        
-        log(f">> Finished function {func.__name__} <<", "debug")
+        finally:
+            log(f"<< Finished function {func.__name__} >>", "debug")
     return _Decorator
 
 def log(message, level="info"):
